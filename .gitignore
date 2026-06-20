@@ -1,0 +1,25 @@
+# === Dueo (dueo-server + dueo-web) ===
+
+# --- Rust / server ---
+dueo-server/target/
+# Base de datos local (SQLite) — no se versiona
+dueo-server/dueo.db
+dueo-server/dueo.db-shm
+dueo-server/dueo.db-wal
+
+# --- Node / SvelteKit / web ---
+dueo-web/node_modules/
+dueo-web/.svelte-kit/
+dueo-web/build/
+dueo-web/.output/
+dueo-web/vite.config.js.timestamp-*
+dueo-web/vite.config.ts.timestamp-*
+
+# --- Secretos locales (token de Telegram, SMTP, etc.) — NUNCA se versionan ---
+.env
+.env.*
+!.env.example
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dueo">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0E1428"/>
+      <stop offset="1" stop-color="#070B16"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.7"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#tile)"/>
+  <g fill="none" stroke-width="7" stroke-linecap="round" filter="url(#glow)" opacity="0.55">
+    <path d="M 44.21 17.45 A 19 19 0 0 1 48.11 21.93" stroke="hsl(35 88% 62%)"/>
+    <path d="M 48.11 21.93 A 19 19 0 0 1 50.44 27.40" stroke="hsl(26 88% 62%)"/>
+    <path d="M 50.44 27.40 A 19 19 0 0 1 50.95 33.33" stroke="hsl(18 88% 62%)"/>
+    <path d="M 50.95 33.33 A 19 19 0 0 1 49.62 39.12" stroke="hsl(9 88% 62%)"/>
+    <path d="M 49.62 39.12 A 19 19 0 0 1 46.55 44.21" stroke="hsl(0 88% 62%)"/>
+    <path d="M 46.55 44.21 A 19 19 0 0 1 42.07 48.11" stroke="hsl(352 88% 62%)"/>
+    <path d="M 42.07 48.11 A 19 19 0 0 1 36.60 50.44" stroke="hsl(343 88% 62%)"/>
+    <path d="M 36.60 50.44 A 19 19 0 0 1 30.67 50.95" stroke="hsl(334 88% 62%)"/>
+    <path d="M 30.67 50.95 A 19 19 0 0 1 24.88 49.62" stroke="hsl(326 88% 62%)"/>
+    <path d="M 24.88 49.62 A 19 19 0 0 1 19.79 46.55" stroke="hsl(317 88% 62%)"/>
+    <path d="M 19.79 46.55 A 19 19 0 0 1 15.89 42.07" stroke="hsl(308 88% 62%)"/>
+    <path d="M 15.89 42.07 A 19 19 0 0 1 13.56 36.60" stroke="hsl(299 88% 62%)"/>
+    <path d="M 13.56 36.60 A 19 19 0 0 1 13.05 30.67" stroke="hsl(291 88% 62%)"/>
+    <path d="M 13.05 30.67 A 19 19 0 0 1 14.38 24.88" stroke="hsl(282 88% 62%)"/>
+    <path d="M 14.38 24.88 A 19 19 0 0 1 17.45 19.79" stroke="hsl(273 88% 62%)"/>
+    <path d="M 17.45 19.79 A 19 19 0 0 1 21.93 15.89" stroke="hsl(265 88% 62%)"/>
+    <path d="M 21.93 15.89 A 19 19 0 0 1 27.40 13.56" stroke="hsl(256 88% 62%)"/>
+    <path d="M 27.40 13.56 A 19 19 0 0 1 33.33 13.05" stroke="hsl(247 88% 62%)"/>
+    <path d="M 33.33 13.05 A 19 19 0 0 1 39.12 14.38" stroke="hsl(239 88% 62%)"/>
+    <path d="M 39.12 14.38 A 19 19 0 0 1 44.21 17.45" stroke="hsl(230 88% 62%)"/>
+  </g>
+  <g fill="none" stroke-width="7" stroke-linecap="round">
+    <path d="M 44.21 17.45 A 19 19 0 0 1 48.11 21.93" stroke="hsl(35 88% 62%)"/>
+    <path d="M 48.11 21.93 A 19 19 0 0 1 50.44 27.40" stroke="hsl(26 88% 62%)"/>
+    <path d="M 50.44 27.40 A 19 19 0 0 1 50.95 33.33" stroke="hsl(18 88% 62%)"/>
+    <path d="M 50.95 33.33 A 19 19 0 0 1 49.62 39.12" stroke="hsl(9 88% 62%)"/>
+    <path d="M 49.62 39.12 A 19 19 0 0 1 46.55 44.21" stroke="hsl(0 88% 62%)"/>
+    <path d="M 46.55 44.21 A 19 19 0 0 1 42.07 48.11" stroke="hsl(352 88% 62%)"/>
+    <path d="M 42.07 48.11 A 19 19 0 0 1 36.60 50.44" stroke="hsl(343 88% 62%)"/>
+    <path d="M 36.60 50.44 A 19 19 0 0 1 30.67 50.95" stroke="hsl(334 88% 62%)"/>
+    <path d="M 30.67 50.95 A 19 19 0 0 1 24.88 49.62" stroke="hsl(326 88% 62%)"/>
+    <path d="M 24.88 49.62 A 19 19 0 0 1 19.79 46.55" stroke="hsl(317 88% 62%)"/>
+    <path d="M 19.79 46.55 A 19 19 0 0 1 15.89 42.07" stroke="hsl(308 88% 62%)"/>
+    <path d="M 15.89 42.07 A 19 19 0 0 1 13.56 36.60" stroke="hsl(299 88% 62%)"/>
+    <path d="M 13.56 36.60 A 19 19 0 0 1 13.05 30.67" stroke="hsl(291 88% 62%)"/>
+    <path d="M 13.05 30.67 A 19 19 0 0 1 14.38 24.88" stroke="hsl(282 88% 62%)"/>
+    <path d="M 14.38 24.88 A 19 19 0 0 1 17.45 19.79" stroke="hsl(273 88% 62%)"/>
+    <path d="M 17.45 19.79 A 19 19 0 0 1 21.93 15.89" stroke="hsl(265 88% 62%)"/>
+    <path d="M 21.93 15.89 A 19 19 0 0 1 27.40 13.56" stroke="hsl(256 88% 62%)"/>
+    <path d="M 27.40 13.56 A 19 19 0 0 1 33.33 13.05" stroke="hsl(247 88% 62%)"/>
+    <path d="M 33.33 13.05 A 19 19 0 0 1 39.12 14.38" stroke="hsl(239 88% 62%)"/>
+    <path d="M 39.12 14.38 A 19 19 0 0 1 44.21 17.45" stroke="hsl(230 88% 62%)"/>
+  </g>
+  <circle cx="44.21" cy="17.45" r="5.60" fill="hsl(35 88% 62%)"/>
+</svg>

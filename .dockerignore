@@ -1,0 +1,10 @@
+# No mandar al contexto de build cosas pesadas o regenerables.
+**/node_modules
+**/target
+dueo-web/build
+dueo-web/.svelte-kit
+**/dueo.db
+**/dueo.db-*
+**/.env
+context
+.git

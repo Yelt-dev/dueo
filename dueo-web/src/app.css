@@ -1,0 +1,196 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* ============================================================
+   TOKENS — cambian según data-theme (ver doc context/10).
+   ============================================================ */
+:root,
+[data-theme='dark'] {
+	--bg: #0a0f1e;
+	--bg-deep: #01030f;
+	--surface: #121a30;
+	--surface-2: #16203a;
+	--surface-deep: #0a1020;
+	--horizon-glow: 0.5;
+	--glass: rgba(17, 23, 37, 0.62);
+	--border: rgba(255, 255, 255, 0.08);
+	--border-strong: rgba(255, 255, 255, 0.14);
+	--text: #f2f5fa;
+	--text-2: #a8b2c4;
+	--text-muted: #6b7588;
+	--brand: #7c6cff;
+	--brand-2: #5b8cff;
+	--ok: #22c55e;
+	--warn: #f5a524;
+	--danger: #f43f5e;
+	--info: #38bdf8;
+	--aurora: 0.09;
+}
+
+[data-theme='light'] {
+	--bg: #f6f7fb;
+	--bg-deep: #edf0f6;
+	--surface: #ffffff;
+	--surface-2: #ffffff;
+	--surface-deep: #eef1f7;
+	--horizon-glow: 0.22;
+	--glass: rgba(255, 255, 255, 0.66);
+	--border: rgba(15, 23, 42, 0.08);
+	--border-strong: rgba(15, 23, 42, 0.14);
+	--text: #0f172a;
+	--text-2: #475569;
+	--text-muted: #94a3b8;
+	--brand: #6d59ff;
+	--brand-2: #3b76ff;
+	--ok: #16a34a;
+	--warn: #d97706;
+	--danger: #e11d48;
+	--info: #0ea5e9;
+	--aurora: 0.06;
+}
+
+/* ============================================================
+   LAYOUT — un solo origen de verdad para ancho / padding / gaps
+   de página. TODAS las rutas usan la clase `.page` (ver doc
+   context/10). No dependen del tema, por eso van en :root suelto.
+   ============================================================ */
+:root {
+	--page-max: 1080px; /* ancho máximo del contenido, IGUAL en toda la app */
+	--page-pad-x: 1.5rem; /* padding horizontal de página */
+	--page-pad-top: 2rem; /* padding superior */
+	--page-pad-bottom: 4rem; /* padding inferior (aire al final del scroll) */
+	--gap-section: 1.75rem; /* separación entre bloques grandes (header, KPIs, lista) */
+	--gap-grid: 1rem; /* gap dentro de grids (p.ej. KPIs) */
+	--gap-list: 0.85rem; /* gap vertical entre filas de una lista */
+}
+
+/* Exponer tokens a Tailwind (utilidades bg-*, text-*, border-*).
+   `inline` = Tailwind referencia la variable (se adapta al tema). */
+@theme inline {
+	--color-base: var(--bg);
+	--color-surface: var(--surface);
+	--color-surface-2: var(--surface-2);
+	--color-ink: var(--text);
+	--color-ink-2: var(--text-2);
+	--color-muted: var(--text-muted);
+	--color-line: var(--border);
+	--color-brand: var(--brand);
+	--color-brand-2: var(--brand-2);
+	--color-ok: var(--ok);
+	--color-warn: var(--warn);
+	--color-danger: var(--danger);
+	--color-info: var(--info);
+	--font-sans: 'Inter Variable', system-ui, sans-serif;
+	--radius-md: 12px;
+	--radius-lg: 16px;
+	--radius-xl: 20px;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* {
+	box-sizing: border-box;
+}
+html {
+	color-scheme: dark light;
+}
+body {
+	margin: 0;
+	min-height: 100dvh;
+	color: var(--text);
+	font-family: 'Inter Variable', system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	/* Fondo: gradiente vertical (--bg → --bg-deep, el más oscuro) + aurora tenue. */
+	background-color: var(--bg-deep);
+	background-image:
+		radial-gradient(60% 50% at 20% -5%, rgba(124, 108, 255, var(--aurora)), transparent 70%),
+		radial-gradient(50% 45% at 95% 0%, rgba(91, 140, 255, var(--aurora)), transparent 70%),
+		linear-gradient(180deg, var(--bg), var(--bg-deep));
+	background-attachment: fixed;
+	transition:
+		background-color 0.3s,
+		color 0.3s;
+}
+.tnum {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Skeleton de carga (ESTÁNDAR): nunca "Cargando…", siempre bloques shimmer con
+   la forma del componente real. Aplica `.skeleton` a cualquier bloque. */
+.skeleton {
+	position: relative;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+	border-radius: 8px;
+}
+.skeleton::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	transform: translateX(-100%);
+	background: linear-gradient(
+		90deg,
+		transparent,
+		color-mix(in srgb, var(--text) 9%, transparent),
+		transparent
+	);
+	animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+/* Contenedor de página HOMOLOGADO: mismo ancho/centro/padding en todas las
+   rutas. Cualquier route usa <div class="page"> como raíz de su contenido. */
+.page {
+	width: 100%;
+	max-width: var(--page-max);
+	margin-inline: auto;
+	padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+/* Móvil: menos padding lateral/superior para ganar ancho útil en pantallas
+   estrechas. Tokens → un solo sitio afecta a todas las rutas. */
+@media (max-width: 640px) {
+	:root {
+		--page-pad-x: 1rem;
+		--page-pad-top: 1.25rem;
+		--page-pad-bottom: 3rem;
+		--gap-section: 1.25rem;
+	}
+}
+
+/* ============================================================
+   Material ACRYLIC (no glass plano): blur + saturación + ruido
+   feTurbulence + hilo de luz superior. Reutilizable.
+   ============================================================ */
+.acrylic {
+	position: relative;
+	background: var(--glass);
+	border: 1px solid var(--border);
+	backdrop-filter: blur(22px) saturate(180%);
+	-webkit-backdrop-filter: blur(22px) saturate(180%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.acrylic::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	opacity: 0.045;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme='light'] .acrylic::before {
+	opacity: 0.06;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation-duration: 0.001ms !important;
+		transition-duration: 0.001ms !important;
+	}
+}

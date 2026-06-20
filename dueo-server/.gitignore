@@ -1,0 +1,9 @@
+/target
+
+# Base de datos local (SQLite) — no se versiona
+/dueo.db
+/dueo.db-shm
+/dueo.db-wal
+
+# Secretos locales (token de Telegram, etc.) — nunca se versiona
+/.env

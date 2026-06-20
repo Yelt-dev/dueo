@@ -1,0 +1,20 @@
+# Dueo selfhosted con un comando: `docker compose up -d`.
+# Construye la imagen (front + server) y persiste la base en un volumen.
+services:
+  dueo:
+    build: .
+    image: dueo:latest
+    container_name: dueo
+    restart: unless-stopped
+    ports:
+      - "3000:3000"          # http://localhost:3000
+    volumes:
+      - dueo-data:/data      # la base SQLite vive aquí (persiste entre reinicios)
+    environment:
+      # Token del bot de Telegram (opcional). Sin esto, el canal Telegram queda
+      # desactivado y el resto de Dueo funciona igual. Defínelo en un archivo .env
+      # junto a este compose, o expórtalo en tu shell.
+      DUEO_TELEGRAM_BOT_TOKEN: ${DUEO_TELEGRAM_BOT_TOKEN:-}
+
+volumes:
+  dueo-data:
