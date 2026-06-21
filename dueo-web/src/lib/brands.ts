@@ -1,5 +1,5 @@
-// Logos de marca (Simple Icons). Detecta la marca por el nombre del servicio.
-// Si no hay match, el componente cae al ícono de categoría (Lucide).
+// Brand logos (Simple Icons). Detects the brand from the service name.
+// On no match, the component falls back to the category icon (Lucide).
 
 import {
 	siNetflix,
@@ -30,7 +30,7 @@ export type Brand = { path: string; color: string; label: string };
 type Si = { path: string; hex: string; title: string };
 const b = (s: Si): Brand => ({ path: s.path, color: '#' + s.hex, label: s.title });
 
-// Orden importa: lo más específico primero (applemusic antes que cualquier 'apple').
+// Order matters: most specific first (applemusic before any 'apple').
 const MAP: { kw: string; brand: Brand }[] = [
 	{ kw: 'netflix', brand: b(siNetflix) },
 	{ kw: 'spotify', brand: b(siSpotify) },

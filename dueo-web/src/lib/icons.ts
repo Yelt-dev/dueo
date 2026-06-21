@@ -1,6 +1,6 @@
-// Iconos para el form: Lucide (genéricos, estáticos y ligeros) + Simple Icons
-// (marcas, cargadas PEREZOSAMENTE desde brandcat para no inflar el bundle).
-// El color sale de la paleta de TONOS DUEO (rampa del logo).
+// Icons for the form: Lucide (generic, static, lightweight) + Simple Icons
+// (brands, loaded LAZILY from brandcat to keep the bundle small).
+// Color comes from the DUEO HUES palette (the logo ramp).
 
 import {
 	Tv,
@@ -47,7 +47,7 @@ const lu = (id: string, label: string, comp: Component): IconDef => ({
 	comp
 });
 
-// Genéricos (Lucide) por tipo de gasto.
+// Generic icons (Lucide) by expense type.
 export const LUCIDE_ICONS: IconDef[] = [
 	lu('tv', 'Streaming', Tv),
 	lu('film', 'Cine', Film),
@@ -81,15 +81,15 @@ export const LUCIDE_ICONS: IconDef[] = [
 
 const LU_BY_ID = new Map(LUCIDE_ICONS.map((i) => [i.id, i]));
 
-// Resuelve un id a su IconDef. 'lu:*' es estático; 'si:*' viene del catálogo
-// perezoso (reactivo: re-resuelve cuando termina de cargar).
+// Resolves an id to its IconDef. 'lu:*' is static; 'si:*' comes from the lazy
+// catalog (reactive: re-resolves when loading finishes).
 export function iconById(id: string | null | undefined): IconDef | null {
 	if (!id) return null;
 	if (id.startsWith('lu:')) return LU_BY_ID.get(id) ?? null;
 	return brandById(id);
 }
 
-// Slugs populares para el grid por defecto (sin volcar 3000 de golpe).
+// Popular slugs for the default grid (without dumping all 3000 at once).
 const POPULAR = new Set(
 	[
 		'netflix',
@@ -130,13 +130,13 @@ const POPULAR = new Set(
 	].map((s) => `si:${s}`)
 );
 
-// Grid por defecto del picker: marcas populares (si ya cargaron) + genéricos.
+// Picker's default grid: popular brands (if already loaded) + generics.
 export function defaultIcons(): IconDef[] {
 	const pop = allBrands().filter((b) => POPULAR.has(b.id));
 	return [...pop, ...LUCIDE_ICONS];
 }
 
-// Búsqueda: en TODO el catálogo de marcas + genéricos (con tope).
+// Search: across the WHOLE brand catalog + generics (capped).
 export function searchIcons(query: string, limit = 80): IconDef[] {
 	const q = query.trim().toLowerCase();
 	if (!q) return defaultIcons();
@@ -147,7 +147,7 @@ export function searchIcons(query: string, limit = 80): IconDef[] {
 
 export { brandsReady };
 
-// Resuelve qué pintar para una sub: icono explícito → marca por nombre → genérico.
+// Resolves what to render for a sub: explicit icon → brand by name → generic.
 export function resolveSubVisual(
 	sub: { name: string; icon?: string | null; color?: string | null },
 	catColor?: string | null
@@ -162,7 +162,7 @@ export function resolveSubVisual(
 	return { def: null, brand: null, color: sub.color || catColor || 'var(--brand)' };
 }
 
-// Paleta de TONOS DUEO: la rampa del logo (naranja→rosa→púrpura→azul) a 88% 62%.
+// DUEO HUES palette: the logo ramp (orange→pink→purple→blue) at 88% 62%.
 export const DUEO_COLORS = [
 	'hsl(35 88% 62%)',
 	'hsl(14 88% 62%)',

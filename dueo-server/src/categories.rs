@@ -1,6 +1,6 @@
-// Módulo `categories`: CRUD de categorías, scopeado por usuario (igual que subscriptions).
-// La tabla ya existe en la migración 0003. Al borrar una categoría, las subs que la
-// usaban quedan con category_id = NULL (ON DELETE SET NULL), no se borran.
+// `categories` module: CRUD for categories, scoped per user (like subscriptions).
+// The table already exists in migration 0003. Deleting a category leaves the subs
+// that used it with category_id = NULL (ON DELETE SET NULL); they are not deleted.
 
 use axum::{
     Json,
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Lo que SALE como JSON. FromRow = sqlx lo arma desde una fila.
+// What goes OUT as JSON. FromRow = sqlx builds it from a row.
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Category {
     id: i64,
@@ -21,7 +21,7 @@ pub struct Category {
     sort_order: i64,
 }
 
-// Lo que ENTRA al crear. Los Option tienen valor por defecto en el handler.
+// What comes IN on create. The Option fields get defaults in the handler.
 #[derive(Deserialize)]
 pub struct CreateCat {
     name: String,
@@ -30,7 +30,7 @@ pub struct CreateCat {
     sort_order: Option<i64>,
 }
 
-// ---- Crear ----------------------------------------------------------------
+// ---- Create ---------------------------------------------------------------
 
 pub async fn create(
     State(state): State<AppState>,
@@ -42,7 +42,7 @@ pub async fn create(
          VALUES (?, ?, ?, ?, ?)
          RETURNING id, name, color, icon, sort_order",
     )
-    .bind(user.user_id) // <- el dueño
+    .bind(user.user_id) // <- the owner
     .bind(&req.name)
     .bind(&req.color)
     .bind(&req.icon)
@@ -54,7 +54,7 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(cat)))
 }
 
-// ---- Listar (solo las del usuario, en su orden manual) --------------------
+// ---- List (only the user's, in their manual order) ------------------------
 
 pub async fn list(
     State(state): State<AppState>,
@@ -74,7 +74,7 @@ pub async fn list(
     Ok(Json(cats))
 }
 
-// ---- Actualizar (parcial con COALESCE) ------------------------------------
+// ---- Update (partial, via COALESCE) ---------------------------------------
 
 #[derive(Deserialize)]
 pub struct UpdateCat {
@@ -110,11 +110,11 @@ pub async fn update(
     .map_err(internal)?;
 
     cat.map(Json)
-        .ok_or((StatusCode::NOT_FOUND, "Categoría no encontrada".to_string()))
+        .ok_or((StatusCode::NOT_FOUND, "Category not found".to_string()))
 }
 
-// ---- Borrar ---------------------------------------------------------------
-// Las subs que la usaban quedan con category_id = NULL (ON DELETE SET NULL).
+// ---- Delete ---------------------------------------------------------------
+// The subs that used it are left with category_id = NULL (ON DELETE SET NULL).
 
 pub async fn delete(
     State(state): State<AppState>,
@@ -129,7 +129,7 @@ pub async fn delete(
         .map_err(internal)?;
 
     if res.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Categoría no encontrada".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
     }
-    Ok(StatusCode::NO_CONTENT) // 204: borrado OK, sin cuerpo
+    Ok(StatusCode::NO_CONTENT) // 204: deleted OK, no body
 }

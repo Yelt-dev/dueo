@@ -1,7 +1,7 @@
-// CRUD de reglas de anticipación (reminder_rules), scopeado por usuario.
-// Una regla = "avisar N días antes". subscription_id NULL = global del usuario;
-// con valor = solo ese servicio (sobrescribe a las globales, R11).
-// No hay "editar": una anticipación se añade o se quita (es un valor atómico).
+// CRUD for lead-time rules (reminder_rules), scoped per user.
+// A rule = "notify N days before". subscription_id NULL = user-global;
+// with a value = that service only (overrides the globals, R11).
+// No "edit": a lead time is added or removed (it's an atomic value).
 
 use axum::{
     Json,
@@ -15,7 +15,7 @@ use crate::{ApiError, AppState, auth::AuthUser, internal};
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Reminder {
     id: i64,
-    subscription_id: Option<i64>, // NULL = global del usuario
+    subscription_id: Option<i64>, // NULL = user-global
     days_before: i64,
 }
 
@@ -25,7 +25,7 @@ pub struct CreateReminder {
     days_before: i64,
 }
 
-// Lista todas las reglas del usuario (globales y por servicio).
+// Lists all of the user's rules (global and per-service).
 pub async fn list(
     State(state): State<AppState>,
     user: AuthUser,
@@ -50,9 +50,9 @@ pub async fn create(
     Json(req): Json<CreateReminder>,
 ) -> Result<(StatusCode, Json<Reminder>), ApiError> {
     if req.days_before < 0 {
-        return Err((StatusCode::BAD_REQUEST, "days_before inválido".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "invalid days_before".to_string()));
     }
-    // Si la regla por servicio apunta a una sub ajena, la cortamos (R13.1).
+    // If a per-service rule points at someone else's sub, reject it (R13.1).
     if let Some(sub_id) = req.subscription_id {
         let owns: Option<(i64,)> =
             sqlx::query_as("SELECT id FROM subscriptions WHERE id = ? AND user_id = ?")
@@ -62,14 +62,11 @@ pub async fn create(
                 .await
                 .map_err(internal)?;
         if owns.is_none() {
-            return Err((
-                StatusCode::NOT_FOUND,
-                "Suscripción no encontrada".to_string(),
-            ));
+            return Err((StatusCode::NOT_FOUND, "Subscription not found".to_string()));
         }
     }
 
-    // OR IGNORE para no fallar si la regla ya existe (UNIQUE). Luego la recuperamos.
+    // OR IGNORE so we don't fail if the rule already exists (UNIQUE). Then read it back.
     sqlx::query(
         "INSERT OR IGNORE INTO reminder_rules (user_id, subscription_id, days_before)
          VALUES (?, ?, ?)",
@@ -81,7 +78,7 @@ pub async fn create(
     .await
     .map_err(internal)?;
 
-    // `IS` para casar correctamente cuando subscription_id es NULL.
+    // `IS` to match correctly when subscription_id is NULL.
     let rule: Reminder = sqlx::query_as(
         "SELECT id, subscription_id, days_before
          FROM reminder_rules
@@ -110,7 +107,7 @@ pub async fn delete(
         .map_err(internal)?;
 
     if res.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Regla no encontrada".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Rule not found".to_string()));
     }
     Ok(StatusCode::NO_CONTENT)
 }

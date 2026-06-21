@@ -1,4 +1,3 @@
-// Declaramos los módulos (cada uno es su archivo .rs).
 mod auth;
 mod categories;
 mod channels;
@@ -28,19 +27,19 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-// Evento de notificación nueva (in-app) para empujar por SSE en vivo.
-// `json` ya es la notificación serializada lista para el cliente.
+// A new in-app notification to push live over SSE. `json` is already the
+// serialized notification, ready for the client.
 #[derive(Clone)]
 pub struct NotifEvent {
     pub user_id: i64,
     pub json: String,
 }
 
-// Contador de intentos fallidos de login por usuario, en memoria (no necesita
-// persistencia: si el proceso reinicia, se limpia). (fallos, inicio de ventana).
+// Failed-login counter per user, in memory (no persistence needed: cleared on
+// restart). Value is (failures, window start).
 pub type LoginAttempts = Arc<Mutex<HashMap<String, (u32, Instant)>>>;
 
-// Estado compartido por todos los handlers. `pub` para que los módulos lo usen.
+// State shared by every handler. `pub` so the modules can use it.
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
@@ -48,7 +47,7 @@ pub struct AppState {
     pub login_attempts: LoginAttempts,
 }
 
-// Tipo de error de la API y helper, compartidos por todos los módulos.
+// API error type and helper, shared across all modules.
 pub type ApiError = (StatusCode, String);
 
 // Log the real error server-side; never leak its Display (SQL fragments, paths)
@@ -57,7 +56,7 @@ pub fn internal<E: std::fmt::Display>(e: E) -> ApiError {
     eprintln!("[error] {e}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        "Error interno".to_string(),
+        "Internal error".to_string(),
     )
 }
 
@@ -71,8 +70,8 @@ pub fn unique_or_internal(msg: &'static str) -> impl Fn(sqlx::Error) -> ApiError
     }
 }
 
-// Lector mínimo de `.env` (sin crate): KEY=VALUE por línea. Se llama al arrancar,
-// antes de cualquier hilo, así que `set_var` es seguro.
+// Minimal `.env` reader (no crate): KEY=VALUE per line. Called at startup,
+// before any thread spawns, so `set_var` is safe.
 fn load_dotenv() {
     let Ok(content) = std::fs::read_to_string(".env") else {
         return;
@@ -91,18 +90,18 @@ fn load_dotenv() {
 
 #[tokio::main]
 async fn main() {
-    load_dotenv(); // carga el token de Telegram, etc. (si existe `.env`)
+    load_dotenv(); // loads the Telegram token, etc. (if a `.env` exists)
 
-    // foreign_keys(true): SQLite NO aplica las FK por defecto. Lo activamos para
-    // que ON DELETE CASCADE funcione (borrar un usuario arrastra sus datos) y
-    // ON DELETE SET NULL también. Es por-conexión, por eso va en las opciones del pool.
+    // foreign_keys(true): SQLite does NOT enforce FKs by default. We enable it so
+    // ON DELETE CASCADE works (deleting a user takes their data with it) and so
+    // does ON DELETE SET NULL. It's per-connection, hence in the pool options.
     let opts = SqliteConnectOptions::from_str("sqlite:dueo.db?mode=rwc")
         .unwrap()
         .foreign_keys(true);
     let db = SqlitePool::connect_with(opts).await.unwrap();
     sqlx::migrate!().run(&db).await.unwrap();
 
-    // Canal broadcast para empujar notificaciones nuevas por SSE.
+    // Broadcast channel to push new notifications over SSE.
     let (tx, _rx) = tokio::sync::broadcast::channel::<NotifEvent>(256);
     let state = AppState {
         db,
@@ -110,12 +109,12 @@ async fn main() {
         login_attempts: Arc::new(Mutex::new(HashMap::new())),
     };
 
-    // Scheduler de recordatorios en segundo plano (cada hora, por zona del usuario).
+    // Background reminder scheduler (hourly, per the user's timezone).
     tokio::spawn(scheduler::run_loop(state.clone()));
-    // Limpieza periódica de sesiones caducadas.
+    // Periodic cleanup of expired sessions.
     tokio::spawn(auth::session_cleanup_loop(state.clone()));
 
-    // Todas las rutas de la API viven bajo /api.
+    // Every API route lives under /api.
     let api = Router::new()
         .route("/health", get(health))
         // auth
@@ -125,16 +124,16 @@ async fn main() {
         .route("/logout", post(auth::logout))
         .route("/me", get(auth::me))
         .route("/settings", axum::routing::put(auth::update_settings))
-        // seguridad: cambiar contraseña y cerrar todas las sesiones
+        // security: change password and sign out everywhere
         .route("/password", post(auth::change_password))
         .route("/logout-all", post(auth::logout_all))
-        // datos: export/backup e import
+        // data: export/backup and import
         .route("/export", get(data::export))
         .route("/import", post(data::import))
-        // usuarios (solo admin): listar, crear, borrar
+        // users (admin only): list, create, delete
         .route("/users", get(users::list).post(users::create))
         .route("/users/{id}", axum::routing::delete(users::delete))
-        // acerca de: nombre + versión de la instancia (público)
+        // about: instance name + version (public)
         .route("/version", get(version))
         // subscriptions (CRUD)
         .route(
@@ -156,7 +155,7 @@ async fn main() {
             "/categories/{id}",
             axum::routing::patch(categories::update).delete(categories::delete),
         )
-        // reminders (reglas de anticipación)
+        // reminders (lead-time rules)
         .route("/reminders", get(reminders::list).post(reminders::create))
         .route("/reminders/{id}", axum::routing::delete(reminders::delete))
         // notifications (panel in-app)
@@ -164,43 +163,44 @@ async fn main() {
         .route("/notifications/stream", get(notifications::stream))
         .route("/notifications/read", post(notifications::mark_all_read))
         .route("/notifications/{id}/read", post(notifications::mark_read))
-        // scheduler (disparo manual para dev/test)
+        // scheduler (manual trigger for dev/test)
         .route("/scheduler/run", post(scheduler::run_now))
-        // telegram (canal): estado, configurar destino, enviar prueba
+        // telegram channel: status, configure destination, send a test
         .route(
             "/channels/telegram",
             get(telegram::status).put(telegram::set_config),
         )
         .route("/channels/telegram/test", post(telegram::test_send))
-        // email (canal): estado, configurar destino, enviar prueba
+        // email channel: status, configure destination, send a test
         .route("/channels/email", get(email::status).put(email::set_config))
         .route("/channels/email/test", post(email::test_send));
 
-    // El front (SvelteKit estático) se sirve desde el propio binario: la API va
-    // bajo /api y CUALQUIER otra ruta cae en el handler estático (SPA fallback).
+    // The (static SvelteKit) front is served from the binary itself: the API
+    // lives under /api and ANY other route falls through to the static handler
+    // (SPA fallback).
     let app = Router::new()
         .nest("/api", api)
         .fallback(static_handler)
         .layer(middleware::from_fn(security_headers))
         .with_state(state);
 
-    // Dirección de escucha configurable. Local: 127.0.0.1:3000 (default). En
-    // contenedor hay que escuchar en 0.0.0.0 para ser accesible: DUEO_BIND=0.0.0.0:3000.
+    // Configurable listen address. Local: 127.0.0.1:3000 (default). In a
+    // container, listen on 0.0.0.0 to be reachable: DUEO_BIND=0.0.0.0:3000.
     let bind = std::env::var("DUEO_BIND").unwrap_or_else(|_| "127.0.0.1:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap();
-    println!("Dueo escuchando en http://{bind}");
+    println!("Dueo listening on http://{bind}");
     axum::serve(listener, app).await.unwrap();
 }
 
-// Front embebido. En debug rust-embed lee de disco (no hace falta recompilar al
-// cambiar el front); en release lo embebe en el binario → un solo ejecutable.
-// La carpeta es relativa al crate; el front debe estar construido (pnpm build).
+// Embedded front. In debug, rust-embed reads from disk (no recompile when the
+// front changes); in release it embeds into the binary → a single executable.
+// The folder is relative to the crate; the front must be built (pnpm build).
 #[derive(RustEmbed)]
 #[folder = "../dueo-web/build/"]
 struct WebAssets;
 
-// Sirve el archivo embebido para la ruta pedida; si no existe (ruta de SPA como
-// /ajustes), devuelve index.html para que el router del cliente la resuelva.
+// Serves the embedded file for the requested path; if it doesn't exist (an SPA
+// route like /ajustes), returns index.html so the client router resolves it.
 async fn static_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
@@ -210,7 +210,7 @@ async fn static_handler(uri: Uri) -> Response {
         return ([(header::CONTENT_TYPE, mime.as_ref())], file.data).into_response();
     }
 
-    // Fallback SPA: rutas del cliente sin archivo propio → index.html.
+    // SPA fallback: client routes with no file of their own → index.html.
     match WebAssets::get("index.html") {
         Some(index) => (
             [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -219,13 +219,13 @@ async fn static_handler(uri: Uri) -> Response {
             .into_response(),
         None => (
             StatusCode::NOT_FOUND,
-            "Front no embebido. Ejecuta `pnpm build` en dueo-web.",
+            "Front not embedded. Run `pnpm build` in dueo-web.",
         )
             .into_response(),
     }
 }
 
-// Acerca de: nombre y versión del binario (desde Cargo.toml en tiempo de compilación).
+// About: binary name and version (from Cargo.toml at compile time).
 async fn version() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({
         "name": env!("CARGO_PKG_NAME"),
@@ -253,5 +253,5 @@ async fn health(State(state): State<AppState>) -> String {
         .fetch_one(&state.db)
         .await
         .unwrap();
-    format!("OK — usuarios registrados: {}", count.0)
+    format!("OK — registered users: {}", count.0)
 }

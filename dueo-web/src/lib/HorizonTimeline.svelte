@@ -15,12 +15,12 @@
 	};
 	let { items = [], onselect }: { items?: Item[]; onselect?: (id: number) => void } = $props();
 
-	// --- geometría ---
-	const LINE_Y = 44; // y de la línea (desde el fondo); deja sitio a los ticks
+	// --- geometry ---
+	const LINE_Y = 44; // line y (from bottom); leaves room for ticks
 	const BASE_STEM = 26;
-	const LANE = 40; // separación VERTICAL entre ramas
-	const BRANCH_X = 34; // offset HORIZONTAL por rama (efecto "árbol/git")
-	const SLOT = 96; // ancho reservado por marcador (nombre visible) → anti-solape
+	const LANE = 40; // VERTICAL spacing between branches
+	const BRANCH_X = 34; // HORIZONTAL offset per branch (git/tree effect)
+	const SLOT = 96; // width reserved per marker (visible name) → anti-overlap
 	const LEFT_PAD = 58;
 
 	let viewportEl: HTMLDivElement;
@@ -30,7 +30,7 @@
 
 	function readPreset(): string {
 		try {
-			// '1A' se retiró → si quedó guardado de antes, cae a 'Todo'.
+			// '1A' was removed → if persisted from before, fall back to 'Todo'.
 			const saved = localStorage.getItem('dueo_horizon_preset');
 			return saved && saved !== '1A' ? saved : 'Todo';
 		} catch {
@@ -53,23 +53,23 @@
 		return clampPPD(trackW / Math.max(d, 7));
 	}
 
-	// Aplica el preset guardado (o 1A) cuando ya conocemos el ancho.
+	// Apply the saved preset once the width is known.
 	$effect(() => {
 		if (trackW > 0 && pxPerDay === 0) pxPerDay = ppdForPreset(activePreset);
 	});
 
-	// Opacidad por PROXIMIDAD: el que vence antes va a tope (protagonismo) y, conforme
-	// se aleja en el tiempo, se atenúa hasta un mínimo. Un dim base, más suave que el
-	// del hover, para que la vista priorice los próximos sin esconder los lejanos.
+	// PROXIMITY opacity: the soonest-due item is fully prominent and fades toward a
+	// minimum as it moves further into the future. A base dim, softer than the hover
+	// one, so the view prioritizes upcoming items without hiding distant ones.
 	function proximityOpacity(days: number): number {
 		const d = Math.max(0, days);
-		if (d <= 7) return 1; // próxima semana = máxima prominencia
-		const t = Math.min(1, (d - 7) / (180 - 7)); // de 7 a 180 días
+		if (d <= 7) return 1; // next week = max prominence
+		const t = Math.min(1, (d - 7) / (180 - 7)); // 7 to 180 days
 		return 1 - 0.55 * t; // 1.0 → 0.45
 	}
 
-	// Item bajo el cursor: al enfocar uno, su rama/nodo van a tope y los demás se
-	// atenúan (coherente con el dim del chip). null = nada enfocado → dim base.
+	// Item under the cursor: focusing one brings its branch/node to full opacity and
+	// dims the rest (matches the chip dim). null = nothing focused → base dim.
 	let hoveredId = $state<number | null>(null);
 	function branchOp(m: { id: number; op: number }): number {
 		if (hoveredId === null) return m.op * 0.85;
@@ -80,10 +80,10 @@
 		return m.id === hoveredId ? 1 : 0.15;
 	}
 
-	// --- layout en ramas tipo árbol (anti-solape) ---
-	// El NODO (punto) se queda en la fecha real sobre la línea (x); el CHIP se
-	// ramifica en diagonal: cada colisión sube un carril (by) y se desplaza a la
-	// derecha (bx), unidos por un conector curvo. Así nada queda "justo atrás".
+	// --- tree-like branch layout (anti-overlap) ---
+	// The NODE (dot) stays at its real date on the line (x); the CHIP branches off
+	// diagonally: each collision moves it up a lane (by) and right (bx), joined by a
+	// curved connector. So nothing ends up "directly behind".
 	const laidOut = $derived.by(() => {
 		const sorted = [...items].sort((a, b) => a.days - b.days);
 		const laneLast: number[] = [];
@@ -95,25 +95,25 @@
 			const vis = resolveSubVisual(it);
 			return {
 				...it,
-				x, // nodo sobre la línea (fecha real)
+				x, // node on the line (real date)
 				lane,
-				by: BASE_STEM + lane * LANE, // altura de la rama
-				bx: x + lane * BRANCH_X, // x del chip (desplazado por rama)
-				color: timeColor(it.progress), // color de URGENCIA (línea/nodo/días)
-				def: vis.def, // icono explícito o de marca
+				by: BASE_STEM + lane * LANE, // branch height
+				bx: x + lane * BRANCH_X, // chip x (shifted per branch)
+				color: timeColor(it.progress), // URGENCY color (line/node/days)
+				def: vis.def, // explicit or brand icon
 				brand: vis.brand,
-				chipColor: vis.color, // color del CHIP (marca/elegido)
+				chipColor: vis.color, // CHIP color (brand/chosen)
 				urgent: it.days <= 7,
-				op: proximityOpacity(it.days) // dim base por lejanía
+				op: proximityOpacity(it.days) // base dim by distance
 			};
 		});
 	});
 	const maxLane = $derived(laidOut.length ? Math.max(...laidOut.map((m) => m.lane)) : 0);
 	const trackHeight = $derived(LINE_Y + 132 + (BASE_STEM + maxLane * LANE));
-	const lineY = $derived(trackHeight - LINE_Y); // y de la línea desde ARRIBA (para el SVG)
+	const lineY = $derived(trackHeight - LINE_Y); // line y from the TOP (for the SVG)
 
-	// Conector curvo del nodo (x, lineY) al chip (bx, lineY - by): cúbica que sale
-	// vertical y entra vertical → curva suave estilo rama de git.
+	// Curved connector from node (x, lineY) to chip (bx, lineY - by): a cubic that
+	// exits vertical and enters vertical → smooth git-branch-style curve.
 	function branchPath(m: { x: number; bx: number; by: number }, ly: number): string {
 		const x0 = m.x,
 			y0 = ly;
@@ -123,13 +123,13 @@
 		return `M ${x0} ${y0} C ${x0} ${my}, ${x1} ${my}, ${x1} ${y1}`;
 	}
 
-	// intervalo de los ticks según el zoom (semanas → meses → trimestres → años)
+	// tick interval based on zoom (weeks → months → quarters → years)
 	const tickStep = $derived.by(() => {
 		if (pxPerDay <= 0) return 365;
 		const windowDays = trackW / pxPerDay;
 		return windowDays <= 45 ? 7 : windowDays <= 130 ? 30 : windowDays <= 400 ? 91 : 365;
 	});
-	// el track llega hasta el último tick → rellena el periodo (sin hueco al final)
+	// track extends to the last tick → fills the period (no gap at the end)
 	const endDays = $derived(Math.ceil((maxDays + 1) / tickStep) * tickStep);
 	const trackWidth = $derived(
 		Math.max(trackW, endDays * pxPerDay + LEFT_PAD + 24 + maxLane * BRANCH_X)
@@ -156,12 +156,12 @@
 		return out;
 	});
 
-	// Gradiente de la línea por urgencia: rojo (cerca de HOY) → ámbar → verde.
+	// Line gradient by urgency: red (near NOW) → amber → green.
 	const lineGrad = $derived.by(() => {
 		if (pxPerDay <= 0) return 'var(--border)';
-		const xR = LEFT_PAD + 14 * pxPerDay; // hasta ~14 días = rojo
-		const xA = LEFT_PAD + 45 * pxPerDay; // ~45 días = ámbar
-		const xG = LEFT_PAD + 85 * pxPerDay; // desde ~85 días = verde
+		const xR = LEFT_PAD + 14 * pxPerDay; // up to ~14 days = red
+		const xA = LEFT_PAD + 45 * pxPerDay; // ~45 days = amber
+		const xG = LEFT_PAD + 85 * pxPerDay; // from ~85 days = green
 		return `linear-gradient(90deg,
 			var(--danger) 0px,
 			var(--danger) ${xR.toFixed(0)}px,
@@ -182,25 +182,25 @@
 		try {
 			localStorage.setItem('dueo_horizon_preset', p.label);
 		} catch {
-			// localStorage no disponible (modo privado): se ignora.
+			// localStorage unavailable (private mode): ignored.
 		}
 		pxPerDay = ppdForPreset(p.label);
 		requestAnimationFrame(() => viewportEl && (viewportEl.scrollLeft = 0));
 	}
 
 	function onWheel(e: WheelEvent) {
-		// Zoom SOLO con pellizco de trackpad (manda ctrlKey) o Ctrl/Cmd + rueda.
-		// Sin modificador: rueda normal = scroll de la página; lateral = pan nativo.
+		// Zoom ONLY with trackpad pinch (sets ctrlKey) or Ctrl/Cmd + wheel.
+		// Without modifier: plain wheel = page scroll; lateral = native pan.
 		if (!(e.ctrlKey || e.metaKey)) return;
 		e.preventDefault();
 		const factor = e.deltaY < 0 ? 1.14 : 1 / 1.14;
 		const newPPD = clampPPD(pxPerDay * factor);
-		if (newPPD === pxPerDay) return; // topado por clamp → sin cambio, conserva preset
+		if (newPPD === pxPerDay) return; // hit clamp → no change, keeps preset
 		const rect = viewportEl.getBoundingClientRect();
 		const cx = e.clientX - rect.left;
 		const dayAtCursor = (viewportEl.scrollLeft + cx - LEFT_PAD) / pxPerDay;
 		pxPerDay = newPPD;
-		activePreset = ''; // ahora sí hubo zoom real
+		activePreset = ''; // a real zoom happened now
 		requestAnimationFrame(() => {
 			viewportEl.scrollLeft = dayAtCursor * pxPerDay + LEFT_PAD - cx;
 		});
@@ -238,8 +238,8 @@
 		</div>
 	</header>
 
-	<!-- pan/zoom es mejora progresiva (ratón); el contenido accesible son los
-	     marcadores, que son botones navegables por teclado. -->
+	<!-- pan/zoom is progressive enhancement (mouse); the accessible content is the
+	     markers, which are keyboard-navigable buttons. -->
 	<div
 		class="viewport"
 		class:grabbing={dragging}
@@ -269,7 +269,7 @@
 					<span>{i18n.t('hz.now')}</span>
 				</div>
 
-				<!-- Capa de RAMAS: conectores curvos + nodos sobre la línea -->
+				<!-- BRANCH layer: curved connectors + nodes on the line -->
 				<svg class="branches" width={trackWidth} height={trackHeight} aria-hidden="true">
 					{#each laidOut as m (m.id)}
 						<path
@@ -380,8 +380,8 @@
 		background: linear-gradient(135deg, var(--brand), var(--brand-2));
 	}
 
-	/* Móvil: el título+subtítulo y los presets ya no caben en una fila → los
-	   presets bajan a una fila propia, a lo ancho, bajo el encabezado. */
+	/* Mobile: title+subtitle and presets no longer fit on one row → presets
+	   drop to their own full-width row below the header. */
 	@media (max-width: 640px) {
 		header {
 			flex-direction: column;
@@ -402,7 +402,7 @@
 		overflow-x: auto;
 		overflow-y: hidden;
 		cursor: grab;
-		/* scrollbar oculto */
+		/* hidden scrollbar */
 		scrollbar-width: none;
 		-ms-overflow-style: none;
 	}
@@ -482,7 +482,7 @@
 		white-space: nowrap;
 	}
 
-	/* Capa SVG de ramas: detrás de los chips, no intercepta el ratón. */
+	/* SVG branch layer: behind the chips, does not intercept the mouse. */
 	.branches {
 		position: absolute;
 		top: 0;
@@ -523,7 +523,7 @@
 		transform-origin: bottom center;
 		z-index: 2;
 		cursor: pointer;
-		/* dim base por lejanía (proximityOpacity); el hover-dim lo sobrescribe */
+		/* base dim by distance (proximityOpacity); hover-dim overrides it */
 		opacity: var(--op, 1);
 		transition:
 			transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -533,19 +533,19 @@
 	.marker:hover {
 		transform: translateX(var(--mx)) translateX(-50%) scale(1.08);
 		z-index: 10;
-		opacity: 1; /* el enfocado SIEMPRE a tope, aunque sea lejano (dim base) */
+		opacity: 1; /* focused item ALWAYS full, even if distant (base dim) */
 		transition: transform 0.16s ease;
 	}
-	/* al pasar sobre un marcador, atenúa los de atrás para enfocar el activo */
+	/* hovering a marker dims the others to focus the active one */
 	.track:has(.marker:hover) .marker:not(:hover) {
 		opacity: 0.3;
 	}
-	/* las ramas/nodos transicionan su opacidad (la maneja branchOp/nodeOp) */
+	/* branches/nodes transition their opacity (driven by branchOp/nodeOp) */
 	.branch,
 	.node {
 		transition: opacity 0.16s ease;
 	}
-	/* nombre completo al hacer hover */
+	/* full name on hover */
 	.marker:hover .name {
 		max-width: 170px;
 	}
@@ -559,7 +559,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* URGENCIA = nº de días (color del tiempo) */
+	/* URGENCY = number of days (time color) */
 	.days {
 		margin-bottom: 5px;
 		font-size: 0.76rem;
@@ -567,7 +567,7 @@
 		color: var(--c);
 		font-variant-numeric: tabular-nums;
 	}
-	/* CHIP = solo marca (logo + tinte de su color), es el extremo de la rama. */
+	/* CHIP = brand only (logo + tint of its color), the branch tip. */
 	.chip {
 		display: grid;
 		place-items: center;

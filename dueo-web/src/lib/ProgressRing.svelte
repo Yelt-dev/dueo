@@ -5,8 +5,8 @@
 	import { i18n } from './i18n.svelte';
 
 	let {
-		progress = 0, // 0..1: fracción de vida ya consumida
-		days = 0, // días restantes (lo que mostramos en grande)
+		progress = 0, // 0..1: fraction of lifetime already elapsed
+		days = 0, // days remaining (shown large)
 		size = 150
 	}: { progress?: number; days?: number; size?: number } = $props();
 
@@ -14,20 +14,19 @@
 	const radius = $derived((size - stroke) / 2);
 	const circ = $derived(2 * Math.PI * radius);
 
-	// Animación: el anillo se "llena" suavemente al aparecer / cambiar.
+	// Animation: the ring "fills" smoothly on appear / change.
 	const t = new Tween(0, { duration: 900, easing: cubicOut });
 	$effect(() => {
 		t.target = progress;
 	});
 
-	// $derived = se recalcula solo cuando cambia algo de lo que depende.
 	let offset = $derived(circ * (1 - t.current));
 	// Same time-urgency ramp as the rest of the app (themeable CSS vars).
 	let color = $derived(timeColor(progress));
 </script>
 
 <svg width={size} height={size} viewBox="0 0 {size} {size}">
-	<!-- pista de fondo -->
+	<!-- background track -->
 	<circle
 		cx={size / 2}
 		cy={size / 2}
@@ -36,7 +35,7 @@
 		stroke="var(--surface-2)"
 		stroke-width={stroke}
 	/>
-	<!-- progreso -->
+	<!-- progress -->
 	<circle
 		cx={size / 2}
 		cy={size / 2}

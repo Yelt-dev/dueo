@@ -1,11 +1,11 @@
-// Genera el anillo multicolor de Dueo como SEGMENTOS de arco (fake conic gradient).
-// Cada segmento toma un tono de una rampa naranja→rosa→púrpura→azul; con
-// stroke-linecap redondo y segmentos contiguos, se funden en un anillo suave.
+// Renders Dueo's multicolor ring as arc SEGMENTS (fake conic gradient).
+// Each segment takes a hue from an orange→pink→purple→blue ramp; with a round
+// stroke-linecap and contiguous segments, they blend into a smooth ring.
 
 export type Seg = { d: string; color: string };
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
-	const a = ((deg - 90) * Math.PI) / 180; // 0° = arriba, sentido horario
+	const a = ((deg - 90) * Math.PI) / 180; // 0° = top, clockwise
 	return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
 }
 
@@ -13,16 +13,16 @@ export type RingOpts = {
 	cx: number;
 	cy: number;
 	r: number;
-	gap?: number; // grados de hueco
-	rot?: number; // rotación del conjunto (mueve hueco + bead)
-	count?: number; // nº de segmentos
+	gap?: number; // gap in degrees
+	rot?: number; // rotation of the whole ring (moves gap + bead)
+	count?: number; // number of segments
 	sat?: number;
 	light?: number;
 	hueStart?: number;
 	hueSpan?: number;
 };
 
-// Punto "cabeza" del spinner (extremo superior derecho, en el tono cálido inicial).
+// Spinner "head" point (top-right end, in the initial warm hue).
 export function ringHead(o: RingOpts) {
 	const { cx, cy, r, gap = 62, rot = 0, sat = 88, light = 62, hueStart = 35 } = o;
 	const [x, y] = polar(cx, cy, r, gap / 2 + rot);
@@ -43,7 +43,7 @@ export function ringSegments(o: RingOpts): Seg[] {
 		hueSpan = 165
 	} = o;
 	const total = 360 - gap;
-	const start = gap / 2 + rot; // inicio del arco (con rotación)
+	const start = gap / 2 + rot; // arc start (with rotation)
 	const step = total / count;
 	const segs: Seg[] = [];
 	for (let i = 0; i < count; i++) {

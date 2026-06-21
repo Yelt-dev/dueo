@@ -1,8 +1,8 @@
-// Módulo `data`: export/backup e import de los datos del usuario.
-// Export: vuelca categorías, suscripciones y reglas de recordatorio (scopeado por
-// usuario, R13.1). Import: las RECREA en la cuenta actual remapeando los ids viejos
-// a los nuevos (category_id de cada sub, subscription_id de cada regla por servicio).
-// La importación AÑADE (no borra lo existente) y es atómica (una transacción).
+// `data` module: export/backup and import of the user's data.
+// Export: dumps categories, subscriptions, and reminder rules (scoped per user,
+// R13.1). Import: RECREATES them in the current account, remapping old ids to new
+// ones (each sub's category_id, each per-service rule's subscription_id).
+// Import APPENDS (doesn't delete existing data) and is atomic (a single transaction).
 
 use std::collections::HashMap;
 
@@ -13,7 +13,7 @@ use crate::{ApiError, AppState, auth::AuthUser, internal};
 
 const EXPORT_VERSION: i64 = 1;
 
-// ---- Formas de los datos (sirven para exportar e importar) ----------------
+// ---- Data shapes (used for both export and import) ------------------------
 
 #[derive(Serialize, Deserialize, sqlx::FromRow)]
 pub struct CategoryData {
@@ -123,13 +123,13 @@ pub async fn import(
     if backup.version != EXPORT_VERSION {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
-            format!("Versión de backup no soportada (esperaba {EXPORT_VERSION})"),
+            format!("Unsupported backup version (expected {EXPORT_VERSION})"),
         ));
     }
 
     let mut tx = state.db.begin().await.map_err(internal)?;
 
-    // 1) Categorías: recrea cada una y guarda viejo_id → nuevo_id.
+    // 1) Categories: recreate each one and record old_id → new_id.
     let mut cat_map: HashMap<i64, i64> = HashMap::new();
     for c in &backup.categories {
         let (new_id,): (i64,) = sqlx::query_as(
@@ -147,7 +147,7 @@ pub async fn import(
         cat_map.insert(c.id, new_id);
     }
 
-    // 2) Suscripciones: remapea category_id con el mapa anterior; guarda viejo→nuevo.
+    // 2) Subscriptions: remap category_id via the previous map; record old→new.
     let mut sub_map: HashMap<i64, i64> = HashMap::new();
     for s in &backup.subscriptions {
         // Hold imported rows to the same rules as a live create (the whole tx
@@ -187,8 +187,8 @@ pub async fn import(
         sub_map.insert(s.id, new_id);
     }
 
-    // 3) Reglas: NULL = global (se queda NULL); con valor, remapea a la sub nueva.
-    //    Si la sub referida no está en el backup, se omite la regla.
+    // 3) Rules: NULL = global (stays NULL); with a value, remap to the new sub.
+    //    If the referenced sub isn't in the backup, the rule is skipped.
     let mut reminders = 0usize;
     for r in &backup.reminders {
         crate::validate::days_before(r.days_before)?;
@@ -196,12 +196,12 @@ pub async fn import(
             None => None,
             Some(old) => match sub_map.get(&old).copied() {
                 Some(n) => Some(n),
-                None => continue, // regla huérfana: la saltamos
+                None => continue, // orphan rule: skip it
             },
         };
-        // NOT EXISTS con `IS` para no duplicar: el UNIQUE no aplica cuando
-        // subscription_id es NULL (en SQLite los NULL se consideran distintos),
-        // así que las reglas globales repetidas se filtran aquí.
+        // NOT EXISTS with `IS` to avoid duplicates: the UNIQUE doesn't apply when
+        // subscription_id is NULL (in SQLite, NULLs are considered distinct), so
+        // repeated global rules are filtered out here.
         let res = sqlx::query(
             "INSERT INTO reminder_rules (user_id, subscription_id, days_before)
              SELECT ?, ?, ?

@@ -1,6 +1,6 @@
-// Estado de tema reactivo (Svelte 5 runes en un .svelte.ts).
-// El parpadeo lo evita el script inline de app.html; aquí solo sincronizamos
-// el estado y persistimos los cambios.
+// Reactive theme state (Svelte 5 runes in a .svelte.ts).
+// The inline script in app.html prevents the flash; here we only sync the
+// state and persist changes.
 
 type Mode = 'light' | 'dark';
 
@@ -11,7 +11,7 @@ function createTheme() {
 		get mode() {
 			return mode;
 		},
-		// Lee el tema que ya dejó puesto el script de app.html.
+		// Read the theme already set by the app.html script.
 		init() {
 			const current = document.documentElement.dataset.theme;
 			mode = current === 'light' ? 'light' : 'dark';

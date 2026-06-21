@@ -1,5 +1,5 @@
-<!-- Skeleton con la MISMA forma que SubscriptionRow (chip · nombre/cat · lifebar ·
-     monto · menú). Estándar: nunca "Cargando…", siempre esqueleto del componente. -->
+<!-- Skeleton with the SAME shape as SubscriptionRow (chip · name/cat · lifebar ·
+     amount · menu). Standard: never "Loading…", always the component's skeleton. -->
 <div class="row">
 	<div class="left">
 		<span class="chip skeleton"></span>

@@ -1,4 +1,4 @@
-// Dueo es selfhosted y se embebe en el binario: lo servimos como SPA (sin SSR).
-// Así la sesión por cookie es 100% cliente y simple.
+// Dueo is self-hosted and embedded in the binary: served as an SPA (no SSR),
+// keeping the cookie session fully client-side and simple.
 export const ssr = false;
 export const prerender = false;

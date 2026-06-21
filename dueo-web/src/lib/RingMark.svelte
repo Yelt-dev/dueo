@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { ringSegments, ringHead } from './ring';
 
-	// size = diámetro VISIBLE del anillo (px); stroke = grosor (px);
-	// gap = grados de hueco; rot = rotación (mueve hueco + bead).
+	// size = VISIBLE ring diameter (px); stroke = thickness (px);
+	// gap = gap in degrees; rot = rotation (moves gap + bead).
 	let {
 		size = 28,
 		stroke = 5,
@@ -10,13 +10,13 @@
 		rot = 0
 	}: { size?: number; stroke?: number; gap?: number; rot?: number } = $props();
 
-	// Todo derivado de los props (reactivo): el SVG se agranda para que el bead no
-	// se corte; el anillo visible = size.
+	// All derived from props (reactive): the SVG grows so the bead isn't clipped;
+	// visible ring = size.
 	const dotR = $derived(stroke * 0.78);
 	const overflow = $derived(Math.max(0, dotR - stroke / 2));
 	const box = $derived(size + 2 * overflow + 1);
 	const c = $derived(box / 2);
-	const rMid = $derived(size / 2 - stroke / 2); // radio del centro del trazo
+	const rMid = $derived(size / 2 - stroke / 2); // radius of the stroke centerline
 	const opts = $derived({ cx: c, cy: c, r: rMid, gap, rot, count: 18 });
 	const segs = $derived(ringSegments(opts));
 	const head = $derived(ringHead(opts));

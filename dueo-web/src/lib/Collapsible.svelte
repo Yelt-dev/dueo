@@ -3,8 +3,8 @@
 	import { ChevronDown } from '@lucide/svelte';
 	import { slide } from 'svelte/transition';
 
-	// Tarjeta colapsable para secciones largas (p. ej. /ajustes). El cuerpo se pasa
-	// como children y se renderiza en el scope del padre (sus estilos siguen aplicando).
+	// Collapsible card for long sections (e.g. /ajustes). The body is passed as
+	// children and rendered in the parent's scope (its styles still apply).
 	let {
 		icon: Icon,
 		title,
@@ -100,8 +100,8 @@
 		transform: rotate(180deg);
 		color: var(--text-2);
 	}
-	/* el cuerpo: mismo gap/padding que tenían las cards de ajustes.
-	   Un pequeño top da aire entre la cabecera y el contenido. */
+	/* Body: same gap/padding the settings cards had.
+	   A small top gives room between header and content. */
 	.body {
 		display: flex;
 		flex-direction: column;

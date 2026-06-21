@@ -1,5 +1,5 @@
-// adapter-static: exporta el front como sitio estático (SPA con fallback
-// index.html) que el binario Rust embebe con rust-embed y sirve desde Axum.
+// adapter-static: exports the front as a static site (SPA with an index.html
+// fallback) that the Rust binary embeds via rust-embed and serves from Axum.
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
@@ -15,12 +15,12 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// fallback index.html → modo SPA: cualquier ruta la resuelve el cliente
-			// (no prerenderizamos; ssr ya está off en +layout.ts). Salida en build/.
+			// index.html fallback → SPA mode: the client resolves any route
+			// (no prerendering; ssr is already off in +layout.ts). Output in build/.
 			adapter: adapter({ fallback: 'index.html' })
 		})
 	],
-	// Dev: reenvía /api al backend Rust (:3000). Mismo origen → la cookie funciona.
+	// Dev: forward /api to the Rust backend (:3000). Same origin → the cookie works.
 	server: {
 		proxy: {
 			'/api': 'http://127.0.0.1:3000'

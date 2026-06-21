@@ -1,7 +1,7 @@
-// Canal Email (SMTP): cliente de envío + configuración del canal por usuario.
-// La config del SERVIDOR (host/puerto/credenciales/remitente) es de la instancia y
-// se lee de env (nunca en BD). El DESTINO (email del usuario) se guarda por usuario
-// en channel_config (kind='email'), igual que el chat_id de Telegram.
+// Email channel (SMTP): send client + per-user channel config.
+// The SERVER config (host/port/credentials/sender) is instance-wide and read
+// from env (never in DB). The DESTINATION (user's email) is stored per user in
+// channel_config (kind='email'), like Telegram's chat_id.
 
 use axum::{Json, extract::State, http::StatusCode};
 use lettre::message::header::ContentType;
@@ -11,27 +11,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Configuración SMTP de la instancia. None = email no configurado en el servidor.
+// Instance SMTP config. None = email not configured on the server.
 pub struct SmtpConfig {
     pub host: String,
     pub port: u16,
     pub user: Option<String>,
     pub pass: Option<String>,
-    pub from: String, // "Dueo <noreply@tu-dominio>" o un email simple
+    pub from: String, // "Dueo <noreply@your-domain>" or a plain email
 }
 
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|s| !s.is_empty())
 }
 
-// Lee la config SMTP de env. Requiere al menos host y remitente (from).
+// Read SMTP config from env. Requires at least host and sender (from).
 pub fn smtp_config() -> Option<SmtpConfig> {
     let host = env_nonempty("DUEO_SMTP_HOST")?;
     let from = env_nonempty("DUEO_SMTP_FROM")?;
     let port = std::env::var("DUEO_SMTP_PORT")
         .ok()
         .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(587); // STARTTLS por defecto
+        .unwrap_or(587); // STARTTLS default
     Some(SmtpConfig {
         host,
         port,
@@ -64,11 +64,10 @@ pub async fn send_email(
     html: &str,
 ) -> Result<(), String> {
     let email = Message::builder()
-        .from(
-            from.parse()
-                .map_err(|e| format!("remitente inválido: {e}"))?,
-        )
-        .to(to.parse().map_err(|e| format!("destino inválido: {e}"))?)
+        .from(from.parse().map_err(|e| format!("invalid sender: {e}"))?)
+        .to(to
+            .parse()
+            .map_err(|e| format!("invalid destination: {e}"))?)
         .subject(subject)
         .header(ContentType::TEXT_HTML)
         .body(html.to_string())
@@ -78,12 +77,12 @@ pub async fn send_email(
     Ok(())
 }
 
-// ---- Configuración del canal (endpoints) ----------------------------------
+// ---- Channel config (endpoints) -------------------------------------------
 
 #[derive(Serialize)]
 pub struct EmailStatus {
-    smtp_ready: bool, // ¿hay SMTP configurado en el servidor?
-    enabled: bool,    // ¿el usuario activó el canal?
+    smtp_ready: bool, // is SMTP configured on the server?
+    enabled: bool,    // did the user enable the channel?
     email: Option<String>,
 }
 
@@ -113,10 +112,10 @@ pub async fn set_config(
     user: AuthUser,
     Json(req): Json<SetEmail>,
 ) -> Result<StatusCode, ApiError> {
-    // Validación básica del email (lettre la valida en serio al enviar).
+    // Basic email validation (lettre validates it properly on send).
     let dest = req.email.trim();
     if !dest.is_empty() && !dest.contains('@') {
-        return Err((StatusCode::BAD_REQUEST, "Email inválido".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Invalid email".to_string()));
     }
     let config = serde_json::json!({ "email": dest }).to_string();
     crate::channels::write_config(
@@ -138,16 +137,13 @@ pub async fn test_send(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let cfg = smtp_config().ok_or((
         StatusCode::BAD_REQUEST,
-        "El servidor no tiene SMTP configurado".to_string(),
+        "Server has no SMTP configured".to_string(),
     ))?;
 
     let dest = crate::channels::dest(&state.db, user.user_id, "email", "email")
         .await
         .map_err(internal)?
-        .ok_or((
-            StatusCode::BAD_REQUEST,
-            "No has configurado tu email".to_string(),
-        ))?;
+        .ok_or((StatusCode::BAD_REQUEST, "Email not configured".to_string()))?;
 
     let html = "<h2>✅ Dueo conectado</h2>\
                 <p>Este correo recibirá tus recordatorios de vencimientos. 🔔</p>";

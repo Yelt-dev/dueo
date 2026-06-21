@@ -1,4 +1,4 @@
-// Módulo `auth`: registro, login, logout, sesión y el extractor AuthUser.
+// `auth` module: register, login, logout, session, and the AuthUser extractor.
 
 use argon2::{
     Argon2, PasswordVerifier,
@@ -17,13 +17,13 @@ use std::time::Instant;
 use crate::{ApiError, AppState, internal, unique_or_internal};
 
 const SESSION_COOKIE: &str = "dueo_session";
-// Las sesiones caducan a los 30 días (se rechazan en el extractor y se limpian).
+// Sessions expire after 30 days (rejected in the extractor and cleaned up).
 const SESSION_MAX_AGE_DAYS: i64 = 30;
-// Rate-limit de login: tras 5 fallos, se bloquea ese usuario 15 min.
+// Login rate limit: after 5 failures, that user is locked out for 15 min.
 const LOGIN_MAX_FAILS: u32 = 5;
 const LOGIN_WINDOW_SECS: u64 = 900;
 
-// ---- Configuración por entorno --------------------------------------------
+// ---- Environment configuration --------------------------------------------
 
 fn env_flag(key: &str) -> bool {
     std::env::var(key)
@@ -31,19 +31,19 @@ fn env_flag(key: &str) -> bool {
         .unwrap_or(false)
 }
 
-// ¿Permitir auto-registro aunque ya exista admin? Por defecto NO: tras el primer
-// arranque solo el admin crea cuentas (/api/users). DUEO_OPEN_REGISTRATION=1 lo abre.
+// Allow self-registration even when an admin already exists? Default NO: after the
+// first boot only the admin creates accounts (/api/users). DUEO_OPEN_REGISTRATION=1 opens it.
 fn open_registration() -> bool {
     env_flag("DUEO_OPEN_REGISTRATION")
 }
 
-// Marcar la cookie como Secure (solo viaja por HTTPS). Actívalo tras un proxy TLS
-// con DUEO_SECURE_COOKIE=1. En HTTP plano (LAN) debe quedar apagado o no entra.
+// Mark the cookie as Secure (only sent over HTTPS). Enable it behind a TLS proxy
+// with DUEO_SECURE_COOKIE=1. On plain HTTP (LAN) it must stay off or the cookie won't be set.
 fn secure_cookies() -> bool {
     env_flag("DUEO_SECURE_COOKIE")
 }
 
-// Construye la cookie de sesión respetando el flag Secure.
+// Build the session cookie, honoring the Secure flag.
 fn session_cookie(token: String) -> Cookie<'static> {
     let b = Cookie::build((SESSION_COOKIE, token))
         .http_only(true)
@@ -56,29 +56,30 @@ fn session_cookie(token: String) -> Cookie<'static> {
     }
 }
 
-// ---- Política de contraseña (compartida por register / cambio / alta admin) -
+// ---- Password policy (shared by register / change / admin create) ---------
 
 pub fn validate_password(p: &str) -> Result<(), ApiError> {
     let len = p.chars().count();
     if len < 8 {
         return Err((
             StatusCode::BAD_REQUEST,
-            "La contraseña debe tener al menos 8 caracteres".to_string(),
+            "Password must be at least 8 characters".to_string(),
         ));
     }
-    // Frases largas (12+) se aceptan tal cual; las más cortas exigen letra + número.
+    // Long passphrases (12+) are accepted as-is; shorter ones require a letter + a digit.
     let has_letter = p.chars().any(|c| c.is_alphabetic());
     let has_digit = p.chars().any(|c| c.is_ascii_digit());
     if len < 12 && !(has_letter && has_digit) {
         return Err((
             StatusCode::BAD_REQUEST,
-            "Usa al menos una letra y un número (o una frase de 12+ caracteres)".to_string(),
+            "Use at least one letter and one number (or a passphrase of 12+ characters)"
+                .to_string(),
         ));
     }
     Ok(())
 }
 
-// ---- Rate-limit de login (en memoria, por usuario) ------------------------
+// ---- Login rate limit (in-memory, per user) -------------------------------
 
 fn rate_limit_check(state: &AppState, key: &str) -> Result<(), ApiError> {
     let map = state.login_attempts.lock().unwrap();
@@ -88,7 +89,7 @@ fn rate_limit_check(state: &AppState, key: &str) -> Result<(), ApiError> {
     {
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
-            "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.".to_string(),
+            "Too many attempts. Wait a few minutes and try again.".to_string(),
         ));
     }
     Ok(())
@@ -98,7 +99,7 @@ fn rate_limit_fail(state: &AppState, key: &str) {
     let mut map = state.login_attempts.lock().unwrap();
     let entry = map.entry(key.to_string()).or_insert((0, Instant::now()));
     if entry.1.elapsed().as_secs() >= LOGIN_WINDOW_SECS {
-        *entry = (1, Instant::now()); // ventana vieja: reinicia el conteo
+        *entry = (1, Instant::now()); // stale window: reset the counter
     } else {
         entry.0 += 1;
     }
@@ -108,7 +109,7 @@ fn rate_limit_clear(state: &AppState, key: &str) {
     state.login_attempts.lock().unwrap().remove(key);
 }
 
-// ---- Limpieza periódica de sesiones caducadas -----------------------------
+// ---- Periodic cleanup of expired sessions ---------------------------------
 
 pub async fn session_cleanup_loop(state: AppState) {
     loop {
@@ -137,10 +138,10 @@ pub struct UserRes {
     lang: String,
 }
 
-// ---- Estado de setup (público) --------------------------------------------
+// ---- Setup status (public) ------------------------------------------------
 
-// ¿Instancia recién instalada (sin usuarios)? El front muestra "crear cuenta de
-// administrador" en el primer arranque. Es público (no requiere sesión).
+// Freshly installed instance (no users)? The front shows "create admin account"
+// on first boot. Public (no session required).
 #[derive(Serialize)]
 pub struct SetupStatus {
     needs_setup: bool,
@@ -158,24 +159,24 @@ pub async fn setup_status(State(state): State<AppState>) -> Result<Json<SetupSta
     }))
 }
 
-// ---- Registro -------------------------------------------------------------
+// ---- Register -------------------------------------------------------------
 
 pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<Credenciales>,
 ) -> Result<Json<UserRes>, ApiError> {
-    // El primer usuario de la instancia se vuelve admin (R14.1).
+    // The instance's first user becomes admin (R14.1).
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db)
         .await
         .map_err(internal)?;
 
-    // Registro cerrado salvo en el primer arranque (instancia vacía) o si se
-    // habilita explícitamente. Tras el admin, las cuentas las crea el admin.
+    // Registration is closed except on first boot (empty instance) or when
+    // explicitly enabled. After the admin exists, the admin creates accounts.
     if count > 0 && !open_registration() {
         return Err((
             StatusCode::FORBIDDEN,
-            "El registro está cerrado. Pide a un administrador que cree tu cuenta.".to_string(),
+            "Registration is closed. Ask an administrator to create your account.".to_string(),
         ));
     }
 
@@ -200,7 +201,7 @@ pub async fn register(
     .bind(role)
     .fetch_one(&state.db)
     .await
-    .map_err(unique_or_internal("El usuario ya existe"))?;
+    .map_err(unique_or_internal("User already exists"))?;
 
     Ok(Json(user))
 }
@@ -212,9 +213,9 @@ pub async fn login(
     jar: CookieJar,
     Json(req): Json<Credenciales>,
 ) -> Result<(CookieJar, Json<UserRes>), ApiError> {
-    // Clave del rate-limit: el usuario tecleado, normalizado.
+    // Rate-limit key: the typed username, normalized.
     let key = req.username.trim().to_lowercase();
-    rate_limit_check(&state, &key)?; // 429 si ya superó el umbral
+    rate_limit_check(&state, &key)?; // 429 if the threshold is already exceeded
 
     #[derive(sqlx::FromRow)]
     struct LoginRow {
@@ -237,12 +238,7 @@ pub async fn login(
     .map_err(internal)?;
 
     // Generic message on purpose: don't reveal whether the user exists.
-    let invalid = || {
-        (
-            StatusCode::UNAUTHORIZED,
-            "Credenciales inválidas".to_string(),
-        )
-    };
+    let invalid = || (StatusCode::UNAUTHORIZED, "Invalid credentials".to_string());
 
     // Unknown user counts as a failed attempt (same generic error).
     let Some(u) = row else {
@@ -298,12 +294,12 @@ pub async fn logout(
             .await
             .map_err(internal)?;
     }
-    Ok((jar.remove(Cookie::from(SESSION_COOKIE)), "Sesión cerrada"))
+    Ok((jar.remove(Cookie::from(SESSION_COOKIE)), "Signed out"))
 }
 
-// ---- Extractor AuthUser ---------------------------------------------------
+// ---- AuthUser extractor ---------------------------------------------------
 
-// "El usuario autenticado de esta petición". `pub` para usarlo en otros módulos.
+// "The authenticated user of this request." `pub` for use in other modules.
 pub struct AuthUser {
     pub user_id: i64,
 }
@@ -315,13 +311,13 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let unauthorized = || (StatusCode::UNAUTHORIZED, "No autenticado".to_string());
+        let unauthorized = || (StatusCode::UNAUTHORIZED, "Not authenticated".to_string());
 
         let jar = CookieJar::from_headers(&parts.headers);
         let token = jar.get(SESSION_COOKIE).ok_or_else(unauthorized)?;
 
-        // Solo válida si no ha caducado (la limpieza periódica borra las viejas,
-        // pero el filtro aquí la invalida de inmediato aunque aún exista la fila).
+        // Only valid if not expired (the periodic cleanup deletes old rows, but
+        // this filter invalidates it immediately even if the row still exists).
         let row: Option<(i64,)> = sqlx::query_as(
             "SELECT user_id FROM sessions WHERE id = ? AND created_at > datetime('now', ?)",
         )
@@ -336,7 +332,7 @@ impl FromRequestParts<AppState> for AuthUser {
     }
 }
 
-// ---- Ruta protegida de ejemplo --------------------------------------------
+// ---- Example protected route ----------------------------------------------
 
 pub async fn me(State(state): State<AppState>, user: AuthUser) -> Result<Json<UserRes>, ApiError> {
     let u: UserRes = sqlx::query_as(
@@ -349,7 +345,7 @@ pub async fn me(State(state): State<AppState>, user: AuthUser) -> Result<Json<Us
     Ok(Json(u))
 }
 
-// ---- Preferencias de notificación (zona horaria + hora de aviso) ----------
+// ---- Notification preferences (timezone + send hour) ----------------------
 
 #[derive(Deserialize)]
 pub struct SettingsReq {
@@ -364,29 +360,29 @@ pub async fn update_settings(
     user: AuthUser,
     Json(req): Json<SettingsReq>,
 ) -> Result<Json<UserRes>, ApiError> {
-    // Validaciones: zona IANA conocida y hora 0-23.
+    // Validation: known IANA timezone and hour 0-23.
     if let Some(tz) = &req.timezone
         && tz.parse::<chrono_tz::Tz>().is_err()
     {
-        return Err((StatusCode::BAD_REQUEST, "Zona horaria inválida".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Invalid timezone".to_string()));
     }
     if let Some(h) = req.send_hour
         && !(0..=23).contains(&h)
     {
-        return Err((StatusCode::BAD_REQUEST, "Hora inválida (0-23)".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Invalid hour (0-23)".to_string()));
     }
-    // Solo idiomas soportados por los mensajes del backend.
+    // Only languages supported by the backend messages.
     if let Some(l) = &req.lang
         && l != "es"
         && l != "en"
     {
-        return Err((StatusCode::BAD_REQUEST, "Idioma no soportado".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Unsupported language".to_string()));
     }
     if let Some(c) = &req.default_currency {
         crate::validate::currency(c)?;
     }
 
-    // COALESCE: solo cambia lo que venga.
+    // COALESCE: only update the fields that were provided.
     let u: UserRes = sqlx::query_as(
         "UPDATE users SET
             timezone         = COALESCE(?, timezone),
@@ -408,7 +404,7 @@ pub async fn update_settings(
     Ok(Json(u))
 }
 
-// ---- Seguridad: cambiar contraseña + cerrar todas las sesiones ------------
+// ---- Security: change password + close all sessions -----------------------
 
 #[derive(Deserialize)]
 pub struct ChangePassword {
@@ -416,8 +412,8 @@ pub struct ChangePassword {
     new_password: String,
 }
 
-// Cambia la contraseña verificando primero la actual (Argon2). No toca sesiones:
-// el usuario sigue logueado; si quiere echar a los demás, usa /logout-all.
+// Changes the password, verifying the current one first (Argon2). Doesn't touch
+// sessions: the user stays logged in; to kick out the others, use /logout-all.
 pub async fn change_password(
     State(state): State<AppState>,
     user: AuthUser,
@@ -425,7 +421,6 @@ pub async fn change_password(
 ) -> Result<&'static str, ApiError> {
     validate_password(&req.new_password)?;
 
-    // Verifica la actual contra el hash guardado.
     let (hash,): (String,) = sqlx::query_as("SELECT password_hash FROM users WHERE id = ?")
         .bind(user.user_id)
         .fetch_one(&state.db)
@@ -437,11 +432,10 @@ pub async fn change_password(
         .map_err(|_| {
             (
                 StatusCode::UNAUTHORIZED,
-                "La contraseña actual no es correcta".to_string(),
+                "Current password is incorrect".to_string(),
             )
         })?;
 
-    // Hashea la nueva y la guarda.
     let salt = SaltString::generate(&mut OsRng);
     let new_hash = Argon2::default()
         .hash_password(req.new_password.as_bytes(), &salt)
@@ -454,11 +448,11 @@ pub async fn change_password(
         .await
         .map_err(internal)?;
 
-    Ok("Contraseña actualizada")
+    Ok("Password updated")
 }
 
-// Cierra TODAS las sesiones del usuario (incluida la actual) → queda deslogueado
-// en todos los dispositivos. Borramos también la cookie de esta petición.
+// Closes ALL of the user's sessions (including the current one) → logged out on
+// every device. We also clear this request's cookie.
 pub async fn logout_all(
     State(state): State<AppState>,
     user: AuthUser,
@@ -471,6 +465,6 @@ pub async fn logout_all(
         .map_err(internal)?;
     Ok((
         jar.remove(Cookie::from(SESSION_COOKIE)),
-        "Sesiones cerradas",
+        "All sessions closed",
     ))
 }

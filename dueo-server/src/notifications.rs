@@ -1,5 +1,5 @@
-// Panel de notificaciones in-app: listar lo que el scheduler dejó en
-// notification_log y marcar como leído. Todo scopeado por usuario (R13.1).
+// In-app notification panel: list what the scheduler wrote to
+// notification_log and mark as read. All scoped per user (R13.1).
 
 use std::convert::Infallible;
 
@@ -23,10 +23,10 @@ pub struct Notification {
     days_before: i64,
     message: String,
     created_at: String,
-    read_at: Option<String>, // NULL = no leída
+    read_at: Option<String>, // NULL = unread
 }
 
-// Lista las notificaciones del usuario, más recientes primero.
+// Lists the user's notifications, most recent first.
 pub async fn list(
     State(state): State<AppState>,
     user: AuthUser,
@@ -46,9 +46,9 @@ pub async fn list(
     Ok(Json(rows))
 }
 
-// Stream SSE: empuja en vivo las notificaciones nuevas del usuario. El cliente
-// abre un EventSource y recibe cada notificación in-app en cuanto el scheduler la
-// crea, sin recargar. Filtramos el broadcast por user_id (aislamiento R13.1).
+// SSE stream: pushes the user's new notifications live. The client opens an
+// EventSource and receives each in-app notification as soon as the scheduler
+// creates it, without reloading. We filter the broadcast by user_id (R13.1 isolation).
 pub async fn stream(
     State(state): State<AppState>,
     user: AuthUser,
@@ -57,12 +57,12 @@ pub async fn stream(
     let rx = state.tx.subscribe();
     let s = BroadcastStream::new(rx).filter_map(move |ev| match ev {
         Ok(e) if e.user_id == uid => Some(Ok(Event::default().data(e.json))),
-        _ => None, // de otro usuario, o lag del canal: lo saltamos
+        _ => None, // another user's, or channel lag: skip it
     });
     Sse::new(s).keep_alive(KeepAlive::default())
 }
 
-// Marca una notificación como leída (idempotente: si ya estaba, no pasa nada).
+// Marks a notification as read (idempotent: no-op if it already was).
 pub async fn mark_read(
     State(state): State<AppState>,
     user: AuthUser,
@@ -80,15 +80,12 @@ pub async fn mark_read(
     .map_err(internal)?;
 
     if res.rows_affected() == 0 {
-        return Err((
-            StatusCode::NOT_FOUND,
-            "Notificación no encontrada".to_string(),
-        ));
+        return Err((StatusCode::NOT_FOUND, "Notification not found".to_string()));
     }
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Marca TODAS como leídas (para el botón "marcar todo").
+// Marks ALL as read (for the "mark all" button).
 pub async fn mark_all_read(
     State(state): State<AppState>,
     user: AuthUser,

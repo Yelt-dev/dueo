@@ -1,6 +1,6 @@
-// Módulo `users`: gestión de cuentas (solo admin). En una instancia selfhosted
-// el admin da de alta/baja a los demás. Borrar un usuario arrastra TODOS sus datos
-// por las FK ON DELETE CASCADE (requiere foreign_keys = ON en el pool, ver main.rs).
+// `users` module: account management (admin only). In a self-hosted instance
+// the admin creates/removes everyone else. Deleting a user drags ALL their data
+// along via FK ON DELETE CASCADE (requires foreign_keys = ON on the pool, see main.rs).
 
 use argon2::{
     Argon2,
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Guard: exige que el usuario de la petición sea admin (R14). 403 si no lo es.
+// Guard: requires the requesting user to be an admin (R14). 403 if not.
 pub async fn require_admin(state: &AppState, user_id: i64) -> Result<(), ApiError> {
     let row: Option<(String,)> = sqlx::query_as("SELECT role FROM users WHERE id = ?")
         .bind(user_id)
@@ -26,7 +26,7 @@ pub async fn require_admin(state: &AppState, user_id: i64) -> Result<(), ApiErro
         Some((role,)) if role == "admin" => Ok(()),
         _ => Err((
             StatusCode::FORBIDDEN,
-            "Requiere permisos de administrador".to_string(),
+            "Administrator privileges required".to_string(),
         )),
     }
 }
@@ -39,7 +39,7 @@ pub struct UserRow {
     created_at: String,
 }
 
-// ---- Listar (admin) -------------------------------------------------------
+// ---- List (admin) ---------------------------------------------------------
 
 pub async fn list(
     State(state): State<AppState>,
@@ -56,7 +56,7 @@ pub async fn list(
     Ok(Json(users))
 }
 
-// ---- Crear (admin) --------------------------------------------------------
+// ---- Create (admin) -------------------------------------------------------
 
 #[derive(Deserialize)]
 pub struct CreateUser {
@@ -95,13 +95,13 @@ pub async fn create(
     .bind(role)
     .fetch_one(&state.db)
     .await
-    .map_err(crate::unique_or_internal("El usuario ya existe"))?;
+    .map_err(crate::unique_or_internal("User already exists"))?;
 
     Ok((StatusCode::CREATED, Json(created)))
 }
 
-// ---- Borrar (admin) -------------------------------------------------------
-// Salvaguardas: no borrarse a sí mismo, ni dejar la instancia sin ningún admin.
+// ---- Delete (admin) -------------------------------------------------------
+// Safeguards: can't delete yourself, nor leave the instance with no admin.
 
 pub async fn delete(
     State(state): State<AppState>,
@@ -113,7 +113,7 @@ pub async fn delete(
     if id == user.user_id {
         return Err((
             StatusCode::BAD_REQUEST,
-            "No puedes borrar tu propia cuenta".to_string(),
+            "You can't delete your own account".to_string(),
         ));
     }
 
@@ -140,9 +140,9 @@ pub async fn delete(
         return match target {
             Some(_) => Err((
                 StatusCode::BAD_REQUEST,
-                "No puedes borrar al único administrador".to_string(),
+                "You can't delete the only administrator".to_string(),
             )),
-            None => Err((StatusCode::NOT_FOUND, "Usuario no encontrado".to_string())),
+            None => Err((StatusCode::NOT_FOUND, "User not found".to_string())),
         };
     }
 

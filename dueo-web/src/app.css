@@ -2,7 +2,7 @@
 @import 'tailwindcss';
 
 /* ============================================================
-   TOKENS — cambian según data-theme (ver doc context/10).
+   TOKENS — change with data-theme (see doc context/10).
    ============================================================ */
 :root,
 [data-theme='dark'] {
@@ -50,22 +50,22 @@
 }
 
 /* ============================================================
-   LAYOUT — un solo origen de verdad para ancho / padding / gaps
-   de página. TODAS las rutas usan la clase `.page` (ver doc
-   context/10). No dependen del tema, por eso van en :root suelto.
+   LAYOUT — a single source of truth for page width / padding /
+   gaps. EVERY route uses the `.page` class (see doc context/10).
+   Theme-independent, hence in a bare :root.
    ============================================================ */
 :root {
-	--page-max: 1080px; /* ancho máximo del contenido, IGUAL en toda la app */
-	--page-pad-x: 1.5rem; /* padding horizontal de página */
-	--page-pad-top: 2rem; /* padding superior */
-	--page-pad-bottom: 4rem; /* padding inferior (aire al final del scroll) */
-	--gap-section: 1.75rem; /* separación entre bloques grandes (header, KPIs, lista) */
-	--gap-grid: 1rem; /* gap dentro de grids (p.ej. KPIs) */
-	--gap-list: 0.85rem; /* gap vertical entre filas de una lista */
+	--page-max: 1080px; /* max content width, SAME across the app */
+	--page-pad-x: 1.5rem; /* horizontal page padding */
+	--page-pad-top: 2rem; /* top padding */
+	--page-pad-bottom: 4rem; /* bottom padding (breathing room at scroll end) */
+	--gap-section: 1.75rem; /* gap between large blocks (header, KPIs, list) */
+	--gap-grid: 1rem; /* gap inside grids (e.g. KPIs) */
+	--gap-list: 0.85rem; /* vertical gap between list rows */
 }
 
-/* Exponer tokens a Tailwind (utilidades bg-*, text-*, border-*).
-   `inline` = Tailwind referencia la variable (se adapta al tema). */
+/* Expose tokens to Tailwind (bg-*, text-*, border-* utilities).
+   `inline` = Tailwind references the variable (adapts to the theme). */
 @theme inline {
 	--color-base: var(--bg);
 	--color-surface: var(--surface);
@@ -101,7 +101,7 @@ body {
 	color: var(--text);
 	font-family: 'Inter Variable', system-ui, sans-serif;
 	-webkit-font-smoothing: antialiased;
-	/* Fondo: gradiente vertical (--bg → --bg-deep, el más oscuro) + aurora tenue. */
+	/* Background: vertical gradient (--bg → --bg-deep, the darkest) + faint aurora. */
 	background-color: var(--bg-deep);
 	background-image:
 		radial-gradient(60% 50% at 20% -5%, rgba(124, 108, 255, var(--aurora)), transparent 70%),
@@ -116,8 +116,8 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
-/* Skeleton de carga (ESTÁNDAR): nunca "Cargando…", siempre bloques shimmer con
-   la forma del componente real. Aplica `.skeleton` a cualquier bloque. */
+/* Loading skeleton (STANDARD): never "Loading…", always shimmer blocks shaped
+   like the real component. Apply `.skeleton` to any block. */
 .skeleton {
 	position: relative;
 	overflow: hidden;
@@ -143,8 +143,8 @@ body {
 	}
 }
 
-/* Contenedor de página HOMOLOGADO: mismo ancho/centro/padding en todas las
-   rutas. Cualquier route usa <div class="page"> como raíz de su contenido. */
+/* STANDARDISED page container: same width/centering/padding on every route.
+   Any route uses <div class="page"> as the root of its content. */
 .page {
 	width: 100%;
 	max-width: var(--page-max);
@@ -152,8 +152,8 @@ body {
 	padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
 }
 
-/* Móvil: menos padding lateral/superior para ganar ancho útil en pantallas
-   estrechas. Tokens → un solo sitio afecta a todas las rutas. */
+/* Mobile: less side/top padding to gain usable width on narrow screens.
+   Tokens → one place affects every route. */
 @media (max-width: 640px) {
 	:root {
 		--page-pad-x: 1rem;
@@ -164,8 +164,8 @@ body {
 }
 
 /* ============================================================
-   Material ACRYLIC (no glass plano): blur + saturación + ruido
-   feTurbulence + hilo de luz superior. Reutilizable.
+   ACRYLIC material (not flat glass): blur + saturation +
+   feTurbulence noise + a top light edge. Reusable.
    ============================================================ */
 .acrylic {
 	position: relative;

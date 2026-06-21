@@ -1,19 +1,19 @@
 <script lang="ts">
-	// Wordmark "Due" + la "o" como anillo multicolor CERRADO, del tamaño de la
-	// mayúscula (cap height), alineado a su base, con el bead a la derecha.
+	// Wordmark "Due" + the "o" as a CLOSED multicolor ring, sized to the cap
+	// height, baseline-aligned, with the bead on the right.
 	import RingMark from './RingMark.svelte';
 	let { size = 40 }: { size?: number } = $props();
 
-	const ring = $derived(size * 0.727); // diámetro visible ≈ alto de la mayúscula (cap height)
-	const stroke = $derived(size * 0.15); // ≈ grosor de los trazos de "Due" (Inter 800)
+	const ring = $derived(size * 0.727); // visible diameter ≈ cap height
+	const stroke = $derived(size * 0.15); // ≈ stroke thickness of "Due" (Inter 800)
 
-	// El SVG es más grande que el anillo (sitio para el bead). Compensamos para:
-	// (1) asentar el anillo en la base (+ overshoot) y (2) respetar el espacio
-	// entre la "e" y la "o".
+	// The SVG is larger than the ring (room for the bead). We compensate to:
+	// (1) seat the ring on the baseline (+ overshoot) and (2) preserve the gap
+	// between "e" and "o".
 	const dotR = $derived(stroke * 0.78);
-	const pad = $derived(Math.max(0, dotR - stroke / 2) + 0.5); // margen interno del SVG
-	const nudge = $derived(pad + ring * 0.02); // baja a la base + overshoot
-	const gapToText = $derived(size * 0.065); // espacio visible "e" → "o"
+	const pad = $derived(Math.max(0, dotR - stroke / 2) + 0.5); // SVG inner margin
+	const nudge = $derived(pad + ring * 0.02); // lower to baseline + overshoot
+	const gapToText = $derived(size * 0.065); // visible "e" → "o" gap
 	const ml = $derived(gapToText - pad);
 </script>
 

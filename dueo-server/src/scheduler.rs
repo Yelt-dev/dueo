@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Resumen de una corrida: nuevas in-app + envíos por canal (ok/fallidos).
+// Summary of a run: new in-app notifications + per-channel sends (ok/failed).
 #[derive(Default, Serialize)]
 pub struct RunReport {
     pub inapp: u64,
@@ -29,7 +29,7 @@ pub struct RunReport {
     pub email_failed: u64,
 }
 
-// Una fila candidata: un servicio que HOY toca avisar por una anticipación N.
+// A candidate row: a service due to be notified TODAY for a lead time of N days.
 #[derive(sqlx::FromRow)]
 struct Candidate {
     user_id: i64,
@@ -40,15 +40,15 @@ struct Candidate {
     currency: String,
     payment_mode: String,
     days_before: i64,
-    lang: String, // idioma del usuario (para los mensajes)
+    lang: String, // user's language (for the messages)
 }
 
-// ¿inglés? (cualquier otro valor → español, el idioma por defecto).
+// English? (any other value → Spanish, the default language).
 fn is_en(lang: &str) -> bool {
     lang == "en"
 }
 
-// "2026-07-01" → "1 jul 2026" / "Jul 1, 2026" según idioma (sin crate de fechas).
+// "2026-07-01" → "1 jul 2026" / "Jul 1, 2026" depending on language (no date crate).
 fn format_date(iso: &str, lang: &str) -> String {
     const ES: [&str; 12] = [
         "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
@@ -70,7 +70,7 @@ fn format_date(iso: &str, lang: &str) -> String {
     iso.to_string()
 }
 
-// "faltan N días" / "N days left" (0 = hoy/today, 1 = mañana/tomorrow).
+// "faltan N días" / "N days left" (0 = today, 1 = tomorrow).
 fn days_left(n: i64, lang: &str) -> String {
     if is_en(lang) {
         match n {
@@ -96,7 +96,7 @@ fn amount_str(c: &Candidate) -> String {
     format!("{} {}{}.{:02}", c.currency, sign, abs / 100, abs % 100)
 }
 
-// Versión PLAIN concisa (panel in-app + log): una línea, con emoji de tono (R12).
+// Concise PLAIN version (in-app panel + log): one line, with a tone emoji (R12).
 fn build_plain(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
     let amount = amount_str(c);
@@ -112,8 +112,8 @@ fn build_plain(c: &Candidate) -> String {
     }
 }
 
-// Versión HTML para Telegram: misma estructura, con negritas. Escapa el nombre
-// (texto del usuario) para no romper el parse_mode.
+// HTML version for Telegram: same structure, with bold. Escapes the name (user
+// text) so it doesn't break parse_mode.
 fn build_telegram(c: &Candidate) -> String {
     let name = crate::telegram::html_escape(&c.name);
     let due = format_date(&c.due_date, &c.lang);
@@ -135,7 +135,7 @@ fn build_telegram(c: &Candidate) -> String {
     }
 }
 
-// Asunto del correo (sin HTML). Tono según el modo de pago (R12).
+// Email subject (no HTML). Tone depends on the payment mode (R12).
 fn build_email_subject(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
     match (is_en(&c.lang), c.payment_mode == "auto") {
@@ -146,9 +146,9 @@ fn build_email_subject(c: &Candidate) -> String {
     }
 }
 
-// Cuerpo HTML del correo (email admite HTML real: usamos <br>, no \n).
+// Email HTML body (email supports real HTML: we use <br>, not \n).
 fn build_email_html(c: &Candidate) -> String {
-    let name = crate::telegram::html_escape(&c.name); // mismo escape sirve para HTML
+    let name = crate::telegram::html_escape(&c.name); // same escape works for HTML
     let due = format_date(&c.due_date, &c.lang);
     let amount = amount_str(c);
     let left = days_left(c.days_before, &c.lang);
@@ -176,7 +176,7 @@ fn build_email_html(c: &Candidate) -> String {
     }
 }
 
-// Avanza una fecha un ciclo (monthly/yearly/custom). None para 'once' (no recurre).
+// Advances a date by one cycle (monthly/yearly/custom). None for 'once' (no recurrence).
 fn add_cycle(
     due: chrono::NaiveDate,
     cycle: &str,
@@ -187,15 +187,15 @@ fn add_cycle(
         "monthly" => due.checked_add_months(Months::new(1)),
         "yearly" => due.checked_add_months(Months::new(12)),
         "custom" => due.checked_add_signed(Duration::days(cycle_days.unwrap_or(30).max(1))),
-        _ => None, // once → no recurre
+        _ => None, // once → no recurrence
     }
 }
 
-// Mantenimiento diario del ciclo de vida (decisión del usuario):
-// - Domiciliadas (payment_mode='auto') recurrentes vencidas → AUTO-RENUEVAN: ruedan
-//   al siguiente ciclo (desde el vencimiento anterior, sin perder días), siguen 'active'.
-// - El resto vencidas (manuales, o 'once') → pasan a 'expired' (la renueva el usuario).
-// `today` = hoy en la zona del usuario. Idempotente: si ya está al día, no hace nada.
+// Daily lifecycle maintenance (the user's policy):
+// - Overdue recurring auto-pay subscriptions (payment_mode='auto') → AUTO-RENEW: they
+//   roll to the next cycle (from the previous due date, without losing days), stay 'active'.
+// - The rest of the overdue ones (manual, or 'once') → move to 'expired' (user renews them).
+// `today` = today in the user's timezone. Idempotent: if already up to date, does nothing.
 pub async fn maintain(
     db: &sqlx::SqlitePool,
     today: &str,
@@ -205,7 +205,7 @@ pub async fn maintain(
         return Ok(());
     };
 
-    // 1) Auto-renovar domiciliadas recurrentes vencidas.
+    // 1) Auto-renew overdue recurring auto-pay subscriptions.
     let overdue: Vec<(i64, String, String, Option<i64>)> = sqlx::query_as(
         "SELECT id, due_date, cycle, cycle_days
          FROM subscriptions
@@ -228,7 +228,7 @@ pub async fn maintain(
         while d < today_d && guard < 1200 {
             match add_cycle(d, &cycle, cycle_days) {
                 Some(nd) => {
-                    start = d; // el vencimiento anterior pasa a ser el nuevo inicio
+                    start = d; // the previous due date becomes the new start
                     d = nd;
                 }
                 None => break,
@@ -245,8 +245,8 @@ pub async fn maintain(
         }
     }
 
-    // 2) Expirar el resto de vencidas (manuales o 'once'); las auto-recurrentes ya
-    //    rodaron arriba, así que su due_date ya no es < today.
+    // 2) Expire the rest of the overdue ones (manual or 'once'); the auto-recurring
+    //    ones already rolled above, so their due_date is no longer < today.
     sqlx::query(
         "UPDATE subscriptions SET status = 'expired', updated_at = datetime('now')
          WHERE status = 'active' AND due_date < ?1
@@ -261,18 +261,18 @@ pub async fn maintain(
     Ok(())
 }
 
-// Selecciona los candidatos de un día y los escribe en el log (canal in-app).
-// `today` None → date('now'). `only_user` None → todos los usuarios (cron real).
-// Devuelve cuántas notificaciones NUEVAS se crearon (las repetidas se ignoran).
+// Selects a day's candidates and writes them to the log (in-app channel).
+// `today` None → date('now'). `only_user` None → all users (the real cron).
+// Returns how many NEW notifications were created (duplicates are ignored).
 pub async fn run_once(
     state: &AppState,
     today: Option<String>,
     only_user: Option<i64>,
 ) -> Result<RunReport, sqlx::Error> {
     let db = &state.db;
-    // Reglas EFECTIVAS (R11): si el servicio tiene reglas propias se usan ESAS;
-    // si no, las globales del usuario (subscription_id NULL). Solo servicios que
-    // generan avisos (R9): active o expired.
+    // EFFECTIVE rules (R11): if the service has its own rules, use THOSE; otherwise
+    // the user's globals (subscription_id NULL). Only services that generate
+    // reminders (R9): active or expired.
     let candidates: Vec<Candidate> = sqlx::query_as(
         "WITH active AS (
             SELECT s.id, s.user_id, s.due_date, s.name, s.amount_cents, s.currency,
@@ -283,14 +283,14 @@ pub async fn run_once(
               AND (?2 IS NULL OR s.user_id = ?2)
          ),
          eff AS (
-            -- reglas propias del servicio
+            -- the service's own rules
             SELECT a.user_id, a.id AS sub_id, a.due_date, a.name, a.amount_cents,
                    a.currency, a.payment_mode, a.lang, r.days_before
             FROM active a
             JOIN reminder_rules r
               ON r.subscription_id = a.id AND r.user_id = a.user_id
             UNION ALL
-            -- globales del usuario, SOLO si el servicio no tiene reglas propias
+            -- the user's globals, ONLY if the service has no rules of its own
             SELECT a.user_id, a.id, a.due_date, a.name, a.amount_cents,
                    a.currency, a.payment_mode, a.lang, g.days_before
             FROM active a
@@ -329,10 +329,10 @@ pub async fn run_once(
 
     let mut report = RunReport::default();
     for c in &candidates {
-        let msg = build_plain(c); // guardamos SIEMPRE la versión plain en el log
+        let msg = build_plain(c); // we ALWAYS store the plain version in the log
 
-        // in-app: OR IGNORE = idempotencia. RETURNING devuelve la fila SOLO si se
-        // insertó (nueva) → entonces la empujamos por SSE en vivo.
+        // in-app: OR IGNORE = idempotency. RETURNING returns the row ONLY if it was
+        // inserted (new) → then we push it over SSE live.
         let inserted: Option<(i64, String)> = sqlx::query_as(
             "INSERT OR IGNORE INTO notification_log
                 (user_id, subscription_id, channel, target_due_date, days_before,
@@ -361,7 +361,7 @@ pub async fn run_once(
                 "read_at": serde_json::Value::Null
             })
             .to_string();
-            // send falla solo si no hay suscriptores SSE: lo ignoramos.
+            // send fails only when there are no SSE subscribers: ignore it.
             let _ = state.tx.send(crate::NotifEvent {
                 user_id: c.user_id,
                 json: payload,
@@ -407,16 +407,16 @@ fn log_key<'a>(c: &'a Candidate, channel: &'a str) -> crate::channels::LogKey<'a
     }
 }
 
-// Tarea de fondo: corre CADA HORA y, para cada usuario, evalúa sus recordatorios
-// cuando en SU zona horaria es su hora de aviso (send_hour). "Hoy" se calcula en la
-// zona del usuario, no en UTC. La idempotencia hace inofensivo correr de más.
+// Background task: runs EVERY HOUR and, for each user, evaluates their reminders
+// when it's their send hour (send_hour) in THEIR timezone. "Today" is computed in
+// the user's timezone, not UTC. Idempotency makes extra runs harmless.
 pub async fn run_loop(state: AppState) {
-    // Catch-up al arrancar: si la hora de aviso de hoy YA pasó, evalúa ahora
-    // (para no perder el aviso tras un reinicio); si aún no llega, espera al tick.
+    // Catch-up on startup: if today's send hour has ALREADY passed, evaluate now
+    // (so we don't miss the reminder after a restart); if it hasn't, wait for the tick.
     run_due_users(&state, true).await;
 
     let mut tick = tokio::time::interval(Duration::from_secs(3600));
-    tick.tick().await; // consume el tick inmediato (ya hicimos el catch-up)
+    tick.tick().await; // consume the immediate tick (we already did the catch-up)
     loop {
         tick.tick().await;
         run_due_users(&state, false).await;
@@ -433,7 +433,7 @@ async fn run_due_users(state: &AppState, startup: bool) {
         {
             Ok(u) => u,
             Err(e) => {
-                eprintln!("[scheduler] no pude leer usuarios: {e}");
+                eprintln!("[scheduler] failed to read users: {e}");
                 return;
             }
         };
@@ -446,13 +446,13 @@ async fn run_due_users(state: &AppState, startup: bool) {
 
         let today = local.format("%Y-%m-%d").to_string();
 
-        // Mantenimiento del ciclo de vida: en CADA tick (no depende de la hora de
-        // aviso), para que las domiciliadas rueden y las manuales expiren a tiempo.
+        // Lifecycle maintenance: on EVERY tick (independent of the send hour), so
+        // auto-pay subscriptions roll and manual ones expire on time.
         if let Err(e) = maintain(&state.db, &today, Some(uid)).await {
             eprintln!("[scheduler] maintain user {uid} error: {e}");
         }
 
-        // En tick normal: solo a la hora exacta. En arranque: catch-up si ya pasó.
+        // Normal tick: only at the exact hour. On startup: catch-up if it already passed.
         let should = if startup {
             hour >= send_hour
         } else {
@@ -481,9 +481,9 @@ async fn run_due_users(state: &AppState, startup: bool) {
     }
 }
 
-// ---- Endpoint de dev: disparar el scheduler a mano ------------------------
-// POST /api/scheduler/run?date=YYYY-MM-DD  (date opcional). Scopeado al usuario
-// autenticado para poder probar sin afectar a otros.
+// ---- Dev endpoint: trigger the scheduler manually -------------------------
+// POST /api/scheduler/run?date=YYYY-MM-DD  (date optional). Scoped to the
+// authenticated user so you can test without affecting others.
 
 #[derive(Deserialize)]
 pub struct RunQuery {
@@ -495,7 +495,7 @@ pub async fn run_now(
     user: AuthUser,
     Query(q): Query<RunQuery>,
 ) -> Result<Json<RunReport>, ApiError> {
-    // Mismo orden que el bucle real: primero mantenimiento, luego recordatorios.
+    // Same order as the real loop: maintenance first, then reminders.
     let today = q
         .date
         .clone()

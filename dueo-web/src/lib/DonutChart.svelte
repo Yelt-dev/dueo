@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Donut SVG sin librería. `pathLength=100` → trabajamos en porcentaje (sin
-	// calcular circunferencias). Cada segmento es un arco coloreado.
+	// Library-free SVG donut. `pathLength=100` → work in percentages (no need to
+	// compute circumferences). Each segment is a colored arc.
 	type Item = { label: string; value: number; color: string };
 	let {
 		items = [],
@@ -35,7 +35,7 @@
 
 <svg width={size} height={size} viewBox="0 0 {size} {size}" role="img">
 	<g transform="rotate(-90 {size / 2} {size / 2})">
-		<!-- pista de fondo -->
+		<!-- background track -->
 		<circle
 			cx={size / 2}
 			cy={size / 2}

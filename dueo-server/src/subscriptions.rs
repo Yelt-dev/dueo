@@ -1,4 +1,4 @@
-// Módulo `subscriptions`: CRUD del dominio principal, scopeado por usuario.
+// `subscriptions` module: CRUD for the core domain, scoped per user.
 
 use axum::{
     Json,
@@ -9,9 +9,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Distingue "clave ausente" de "clave = null". Con `default`, un campo que no
-// viene → None; uno que viene (valor o null) pasa por aquí y se envuelve en
-// Some, de modo que `null` llega como Some(None) (intención: poner NULL).
+// Distinguishes "key absent" from "key = null". With `default`, a missing field
+// → None; a present field (value or null) goes through here and is wrapped in
+// Some, so `null` arrives as Some(None) (intent: set NULL).
 fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,
@@ -36,7 +36,7 @@ async fn category_belongs(
     Ok(row.is_some())
 }
 
-// Lo que SALE como JSON. FromRow = sqlx lo arma desde una fila.
+// What goes OUT as JSON. FromRow = sqlx builds it from a row.
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Subscription {
     id: i64,
@@ -55,7 +55,7 @@ pub struct Subscription {
     color: Option<String>,
 }
 
-// Lo que ENTRA al crear. Los Option tienen valor por defecto en el handler.
+// What comes IN on create. The Option fields get defaults in the handler.
 #[derive(Deserialize)]
 pub struct CreateSub {
     name: String,
@@ -72,7 +72,7 @@ pub struct CreateSub {
     color: Option<String>,
 }
 
-// ---- Crear ----------------------------------------------------------------
+// ---- Create ---------------------------------------------------------------
 
 pub async fn create(
     State(state): State<AppState>,
@@ -94,7 +94,7 @@ pub async fn create(
             .await
             .map_err(internal)?
     {
-        return Err((StatusCode::NOT_FOUND, "Categoría no encontrada".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
     }
 
     let sub: Subscription = sqlx::query_as(
@@ -106,7 +106,7 @@ pub async fn create(
                    start_date, due_date, category_id, payment_mode, status, notes,
                    icon, color",
     )
-    .bind(user.user_id) // <- el dueño
+    .bind(user.user_id) // <- the owner
     .bind(&req.name)
     .bind(req.amount_cents)
     .bind(currency)
@@ -126,7 +126,7 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(sub)))
 }
 
-// ---- Listar (solo las del usuario, lo que vence antes primero) -------------
+// ---- List (only the user's, soonest due first) ----------------------------
 
 pub async fn list(
     State(state): State<AppState>,
@@ -148,14 +148,14 @@ pub async fn list(
     Ok(Json(subs))
 }
 
-// ---- Obtener una ----------------------------------------------------------
+// ---- Get one --------------------------------------------------------------
 
 pub async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<Subscription>, ApiError> {
-    // El `AND user_id = ?` hace que la de otro usuario "no exista" (404), no 403.
+    // The `AND user_id = ?` makes another user's row "not exist" (404), not 403.
     let sub: Subscription = sqlx::query_as(
         "SELECT id, name, amount_cents, currency, cycle, cycle_days,
                 start_date, due_date, category_id, payment_mode, status, notes,
@@ -168,18 +168,15 @@ pub async fn get_one(
     .fetch_optional(&state.db)
     .await
     .map_err(internal)?
-    .ok_or((
-        StatusCode::NOT_FOUND,
-        "Suscripción no encontrada".to_string(),
-    ))?;
+    .ok_or((StatusCode::NOT_FOUND, "Subscription not found".to_string()))?;
 
     Ok(Json(sub))
 }
 
-// ---- Actualizar (parcial con COALESCE) ------------------------------------
+// ---- Update (partial, via COALESCE) ---------------------------------------
 
-// Todos opcionales: solo se actualiza lo que venga. COALESCE(?, col) = "usa el
-// valor nuevo si vino; si no, deja el actual".
+// All optional: only the fields that were sent get updated. COALESCE(?, col) =
+// "use the new value if present; otherwise keep the current one".
 #[derive(Deserialize)]
 pub struct UpdateSub {
     name: Option<String>,
@@ -189,15 +186,15 @@ pub struct UpdateSub {
     cycle_days: Option<i64>,
     start_date: Option<String>,
     due_date: Option<String>,
-    // Doble Option: distinguimos "no vino la clave" (None → no tocar) de
-    // "vino como null" (Some(None) → poner NULL = quitar categoría).
-    // `default` para que un PATCH que la omite (p.ej. renovar) no la borre.
+    // Double Option: distinguish "key absent" (None → leave untouched) from
+    // "sent as null" (Some(None) → set NULL = clear the category).
+    // `default` so a PATCH that omits it (e.g. renewal) doesn't wipe it.
     #[serde(default, deserialize_with = "double_option")]
     category_id: Option<Option<i64>>,
     payment_mode: Option<String>,
     status: Option<String>,
     notes: Option<String>,
-    // icon/color también con doble-Option: null = volver a autodetectar.
+    // icon/color also double-Option: null = re-enable autodetection.
     #[serde(default, deserialize_with = "double_option")]
     icon: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -231,7 +228,7 @@ pub async fn update(
             .await
             .map_err(internal)?
     {
-        return Err((StatusCode::NOT_FOUND, "Categoría no encontrada".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
     }
 
     let sub: Option<Subscription> = sqlx::query_as(
@@ -243,8 +240,8 @@ pub async fn update(
             cycle_days   = COALESCE(?, cycle_days),
             start_date   = COALESCE(?, start_date),
             due_date     = COALESCE(?, due_date),
-            -- si el primer ? es verdadero (vino la clave), usa el segundo ?
-            -- (que puede ser NULL para quitarla); si no, deja la actual.
+            -- if the first ? is true (key was present), use the second ?
+            -- (which may be NULL to clear it); otherwise keep the current value.
             category_id  = CASE WHEN ? THEN ? ELSE category_id END,
             payment_mode = COALESCE(?, payment_mode),
             status       = COALESCE(?, status),
@@ -264,28 +261,26 @@ pub async fn update(
     .bind(req.cycle_days)
     .bind(req.start_date)
     .bind(req.due_date)
-    .bind(req.category_id.is_some()) // ¿vino la clave category_id?
-    .bind(req.category_id.flatten()) // su valor (Some(id) o None=NULL)
+    .bind(req.category_id.is_some()) // was the category_id key present?
+    .bind(req.category_id.flatten()) // its value (Some(id) or None=NULL)
     .bind(req.payment_mode)
     .bind(req.status)
     .bind(req.notes)
-    .bind(req.icon.is_some()) // ¿vino icon?
-    .bind(req.icon.flatten()) // su valor (o NULL = autodetectar)
-    .bind(req.color.is_some()) // ¿vino color?
-    .bind(req.color.flatten()) // su valor (o NULL)
+    .bind(req.icon.is_some()) // was icon present?
+    .bind(req.icon.flatten()) // its value (or NULL = autodetect)
+    .bind(req.color.is_some()) // was color present?
+    .bind(req.color.flatten()) // its value (or NULL)
     .bind(id)
     .bind(user.user_id)
     .fetch_optional(&state.db)
     .await
     .map_err(internal)?;
 
-    sub.map(Json).ok_or((
-        StatusCode::NOT_FOUND,
-        "Suscripción no encontrada".to_string(),
-    ))
+    sub.map(Json)
+        .ok_or((StatusCode::NOT_FOUND, "Subscription not found".to_string()))
 }
 
-// ---- Borrar ---------------------------------------------------------------
+// ---- Delete ---------------------------------------------------------------
 
 pub async fn delete(
     State(state): State<AppState>,
@@ -300,10 +295,7 @@ pub async fn delete(
         .map_err(internal)?;
 
     if res.rows_affected() == 0 {
-        return Err((
-            StatusCode::NOT_FOUND,
-            "Suscripción no encontrada".to_string(),
-        ));
+        return Err((StatusCode::NOT_FOUND, "Subscription not found".to_string()));
     }
-    Ok(StatusCode::NO_CONTENT) // 204: borrado OK, sin cuerpo
+    Ok(StatusCode::NO_CONTENT) // 204: deleted OK, no body
 }

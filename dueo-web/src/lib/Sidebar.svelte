@@ -46,7 +46,7 @@
 		align-items: center;
 		gap: 1.25rem;
 		padding: 1rem 0;
-		/* solo borde derecho (la clase .acrylic pone borde completo) */
+		/* right border only (the .acrylic class adds a full border) */
 		border: none;
 		border-right: 1px solid var(--border);
 		border-radius: 0;

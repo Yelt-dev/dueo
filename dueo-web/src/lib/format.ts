@@ -1,12 +1,12 @@
-// Helpers de cálculo y formato (sin estado, fáciles de testear).
-// Las etiquetas con texto (daysLabel, cycleLabel…) viven en i18n.svelte.ts; aquí
-// solo cálculo puro y el formateo de dinero (que usa el locale activo).
+// Calculation and formatting helpers (stateless, easy to test).
+// Text labels (daysLabel, cycleLabel…) live in i18n.svelte.ts; here it's only
+// pure calculation and money formatting (which uses the active locale).
 
 import { locale } from './i18n.svelte';
 
 export type Lifecycle = { progress: number; days: number };
 
-// progress = fracción de vida consumida (0..1); days = días restantes.
+// progress = fraction of lifetime elapsed (0..1); days = days remaining.
 export function lifecycle(startISO: string, dueISO: string, now = new Date()): Lifecycle {
 	const start = new Date(startISO).getTime();
 	const due = new Date(dueISO).getTime();
@@ -17,7 +17,7 @@ export function lifecycle(startISO: string, dueISO: string, now = new Date()): L
 	return { progress, days };
 }
 
-// Color semántico de TIEMPO (no de categoría).
+// Semantic TIME color (not category color).
 export function timeColor(progress: number): string {
 	if (progress >= 0.85) return 'var(--danger)';
 	if (progress >= 0.6) return 'var(--warn)';
@@ -46,8 +46,8 @@ export function monthlyCents(sub: { cycle: string; amount_cents: number }): numb
 
 export function money(cents: number, currency = 'USD'): string {
 	const value = cents / 100;
-	// Código ISO SIEMPRE delante (estable entre idiomas y sin ambigüedad entre
-	// monedas que comparten el símbolo $). El número usa los separadores del idioma.
+	// ISO code ALWAYS up front (stable across languages and unambiguous between
+	// currencies that share the $ symbol). The number uses the language's separators.
 	const num = value.toLocaleString(locale(), {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2

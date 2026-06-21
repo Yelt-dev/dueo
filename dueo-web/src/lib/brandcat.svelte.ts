@@ -1,6 +1,6 @@
-// Catálogo de marcas (Simple Icons, 3000+) cargado de forma PEREZOSA en un chunk
-// aparte (dynamic import) para no inflar el bundle inicial del dashboard. Es
-// REACTIVO: cuando termina de cargar, la UI que lo consulta se re-renderiza sola.
+// Brand catalog (Simple Icons, 3000+) loaded LAZILY in a separate chunk
+// (dynamic import) to keep it out of the dashboard's initial bundle. It is
+// REACTIVE: once loading finishes, any UI reading it re-renders automatically.
 
 import type { IconDef } from './icons';
 
@@ -13,7 +13,7 @@ let started = false;
 const map = new Map<string, IconDef>();
 const list: IconDef[] = [];
 
-// Arranca la carga una sola vez (llamar al montar la app).
+// Kicks off loading once (call on app mount).
 export async function ensureBrands(): Promise<void> {
 	if (started) return;
 	started = true;
@@ -29,11 +29,11 @@ export async function ensureBrands(): Promise<void> {
 			}
 		}
 	}
-	ready = true; // dispara reactividad
+	ready = true; // trigger reactivity
 }
 
-// Leer `ready` dentro de estos getters crea la dependencia reactiva: quien los use
-// en un $derived/plantilla se actualiza cuando el catálogo termina de cargar.
+// Reading `ready` inside these getters creates the reactive dependency: anyone
+// using them in a $derived/template updates when the catalog finishes loading.
 export function brandsReady(): boolean {
 	return ready;
 }

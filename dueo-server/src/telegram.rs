@@ -1,22 +1,22 @@
-// Canal Telegram: cliente de la Bot API + configuración del canal por usuario.
-// El TOKEN del bot es de la instancia y se lee de la env `DUEO_TELEGRAM_BOT_TOKEN`
-// (nunca en código/BD). El destino (chat_id del grupo) lo guarda cada usuario en
-// channel_config. Para grupos, chat_id es un número negativo (p.ej. -100123…); lo
-// tratamos como string para no perder precisión.
+// Telegram channel: Bot API client + per-user channel config.
+// The bot TOKEN is instance-wide and read from env `DUEO_TELEGRAM_BOT_TOKEN`
+// (never in code/DB). The destination (group chat_id) is stored per user in
+// channel_config. For groups, chat_id is a negative number (e.g. -100123…); we
+// treat it as a string to avoid precision loss.
 
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::{ApiError, AppState, auth::AuthUser, internal};
 
-// Token del bot (de la instancia). None = Telegram no configurado en el servidor.
+// Bot token (instance-wide). None = Telegram not configured on the server.
 pub fn bot_token() -> Option<String> {
     std::env::var("DUEO_TELEGRAM_BOT_TOKEN")
         .ok()
         .filter(|s| !s.is_empty())
 }
 
-// Escapa los 3 caracteres que rompen el parse_mode HTML de Telegram.
+// Escape the 3 characters that break Telegram's HTML parse_mode.
 pub fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -55,13 +55,13 @@ pub async fn send_message(token: &str, chat_id: &str, text: &str) -> Result<(), 
     }
 }
 
-// ---- Configuración del canal (endpoints) ----------------------------------
+// ---- Channel config (endpoints) -------------------------------------------
 
-// Estado del canal Telegram para la UI.
+// Telegram channel state for the UI.
 #[derive(Serialize)]
 pub struct TelegramStatus {
-    bot_ready: bool, // ¿hay token en el servidor?
-    enabled: bool,   // ¿el usuario activó el canal?
+    bot_ready: bool, // is there a token on the server?
+    enabled: bool,   // did the user enable the channel?
     chat_id: Option<String>,
 }
 
@@ -87,7 +87,7 @@ pub struct SetTelegram {
     enabled: Option<bool>,
 }
 
-// Guarda/actualiza el destino del usuario (upsert por (user_id, kind)).
+// Store/update the user's destination (upsert by (user_id, kind)).
 pub async fn set_config(
     State(state): State<AppState>,
     user: AuthUser,
@@ -107,14 +107,14 @@ pub async fn set_config(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Envía un mensaje de prueba al chat configurado (botón "enviar prueba", R15).
+// Send a test message to the configured chat ("send test" button, R15).
 pub async fn test_send(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let token = bot_token().ok_or((
         StatusCode::BAD_REQUEST,
-        "El servidor no tiene token de Telegram".to_string(),
+        "Server has no Telegram token".to_string(),
     ))?;
 
     let chat_id = crate::channels::dest(&state.db, user.user_id, "telegram", "chat_id")
@@ -122,7 +122,7 @@ pub async fn test_send(
         .map_err(internal)?
         .ok_or((
             StatusCode::BAD_REQUEST,
-            "No has configurado el chat de Telegram".to_string(),
+            "Telegram chat not configured".to_string(),
         ))?;
 
     let text = "✅ <b>Dueo conectado</b>\n\n\

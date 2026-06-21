@@ -10,10 +10,10 @@
 
 	let { children } = $props();
 
-	// El chrome (rail + topbar) se oculta en el login.
+	// Chrome (rail + topbar) is hidden on the login page.
 	const showChrome = $derived(page.url.pathname !== '/login');
 
-	// Título del documento por sección (la pestaña mostraba la URL al no haber title).
+	// Per-section document title (the tab showed the URL when no title was set).
 	const SECTIONS: Record<string, string> = {
 		'/': 'doc.home',
 		'/login': 'doc.login',
@@ -25,8 +25,8 @@
 		SECTIONS[page.url.pathname] ? `${i18n.t(SECTIONS[page.url.pathname])} · Dueo` : 'Dueo'
 	);
 
-	// Nota: el catálogo de marcas (Simple Icons, ~5MB) NO se carga aquí; se carga
-	// bajo demanda al buscar un icono (ver modal) o si hay subs con marca explícita.
+	// Note: the brand catalog (Simple Icons, ~5MB) is NOT loaded here; it loads
+	// on demand when searching for an icon (see modal) or if subs use an explicit brand.
 	onMount(() => {
 		theme.init();
 		i18n.init();
