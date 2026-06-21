@@ -10,22 +10,22 @@
 	import { me, logout, updateSettings } from './api';
 	import { i18n } from './i18n.svelte';
 
-	// Chrome global: presente en todas las pantallas (menos /login). Así la
-	// campanita, el tema, el usuario y el logout están SIEMPRE accesibles.
+	// Global chrome: present on every screen (except /login), so the bell, theme,
+	// user and logout are ALWAYS accessible.
 	let user = $state<{ username: string; role: string } | null>(null);
 
-	// En móvil los controles no se amontonan: se colapsan tras un botón y se
-	// despliegan en abanico (ver CSS). En desktop el botón está oculto y la fila
-	// se muestra entera, así que este estado no afecta.
+	// On mobile the controls don't pile up: they collapse behind a button and fan
+	// out (see CSS). On desktop the button is hidden and the row shows in full, so
+	// this state has no effect.
 	let menuOpen = $state(false);
 
 	onMount(async () => {
 		const m = await me();
-		if (m.ok) {
-			const u = await m.json();
+		if (m.ok && m.data) {
+			const u = m.data;
 			user = u;
-			// Si el idioma del servidor (para los recordatorios) no coincide con el de
-			// la UI, lo sincronizamos. Cubre el primer login en un dispositivo nuevo.
+			// If the server lang (used for reminders) differs from the UI lang, sync it.
+			// Covers the first login on a new device.
 			if (u.lang && u.lang !== i18n.lang) updateSettings({ lang: i18n.lang }).catch(() => {});
 		}
 	});
@@ -42,9 +42,9 @@
 		<div class="actions">
 			{#if user}<span class="user">{user.username}</span>{/if}
 
-			<!-- Cluster de controles. En móvil cada uno va en un .slot que se anima
-			     (opacidad + desplazamiento) para el efecto de abanico. Un único
-			     NotificationsBell (mantiene una sola conexión SSE). -->
+			<!-- Control cluster. On mobile each one sits in a .slot that animates
+			     (opacity + translate) for the fan effect. A single NotificationsBell
+			     (keeps one SSE connection). -->
 			<div class="cluster" class:open={menuOpen}>
 				<div class="slot"><NotificationsBell /></div>
 				<div class="slot"><LangPicker /></div>
@@ -61,7 +61,7 @@
 				</div>
 			</div>
 
-			<!-- Disparador del abanico (solo visible en móvil). -->
+			<!-- Fan trigger (mobile only). -->
 			<button
 				class="fab"
 				class:open={menuOpen}
@@ -90,7 +90,7 @@
 		position: sticky;
 		top: 0;
 		z-index: 30;
-		/* la clase .acrylic da fondo+blur; solo queremos borde inferior */
+		/* .acrylic provides bg+blur; we only want a bottom border */
 		border: none;
 		border-bottom: 1px solid var(--border);
 		border-radius: 0;
@@ -122,7 +122,7 @@
 		align-items: center;
 		gap: 0.6rem;
 	}
-	/* En desktop el slot es transparente al layout: la fila se ve como siempre. */
+	/* On desktop the slot is layout-transparent: the row looks as usual. */
 	.slot {
 		display: contents;
 	}
@@ -152,7 +152,7 @@
 		transform: translateY(-1px);
 	}
 
-	/* Disparador del abanico: oculto en desktop. */
+	/* Fan trigger: hidden on desktop. */
 	.fab {
 		display: none;
 		place-items: center;
@@ -180,7 +180,7 @@
 		cursor: default;
 	}
 
-	/* === Móvil: los controles se colapsan y se despliegan en abanico === */
+	/* === Mobile: controls collapse and fan out === */
 	@media (max-width: 640px) {
 		.inner {
 			gap: 0.5rem;
@@ -189,7 +189,7 @@
 		.user {
 			display: none;
 		}
-		/* la fila de controles queda por encima del backdrop y es clicable */
+		/* Control row sits above the backdrop and stays clickable */
 		.actions {
 			z-index: 2;
 		}
@@ -208,9 +208,9 @@
 			background: color-mix(in srgb, var(--brand) 16%, var(--surface-2));
 		}
 
-		/* El cluster cae en columna bajo el disparador, sin empujar el layout.
-		   Sin transform en el contenedor (rompería el position:fixed de los
-		   popovers internos): se ancla con top/right. */
+		/* The cluster drops into a column under the trigger without pushing layout.
+		   No transform on the container (it would break position:fixed of the inner
+		   popovers): anchored with top/right instead. */
 		.cluster {
 			position: absolute;
 			top: calc(100% + 0.5rem);
@@ -233,7 +233,7 @@
 			transform: none;
 			pointer-events: auto;
 		}
-		/* Stagger: de arriba (más cercano al disparador) hacia abajo. */
+		/* Stagger: from top (closest to the trigger) downward. */
 		.cluster.open .slot:nth-child(1) {
 			transition-delay: 0s;
 		}

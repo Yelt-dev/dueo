@@ -11,7 +11,7 @@
 	} from '$lib/api';
 	import { i18n } from '$lib/i18n.svelte';
 
-	// Paleta sugerida (tokens vivos del Design System / marcas comunes).
+	// Suggested palette (live Design System tokens / common brands).
 	const SWATCHES = [
 		'#E50914',
 		'#1DB954',
@@ -28,7 +28,7 @@
 	let categories = $state<Category[]>([]);
 	let loading = $state(true);
 
-	// Edición/alta inline: id en edición (null = nada, 0 = nueva), con borrador.
+	// Inline edit/create: id being edited (null = none, 0 = new), with a draft.
 	let editingId = $state<number | null>(null);
 	let draftName = $state('');
 	let draftColor = $state(SWATCHES[2]);
@@ -38,7 +38,7 @@
 	onMount(async () => {
 		const res = await getCategories();
 		if (res.status === 401) return goto('/login');
-		if (res.ok) categories = await res.json();
+		if (res.ok && res.data) categories = res.data;
 		loading = false;
 	});
 
@@ -70,12 +70,12 @@
 					color: draftColor,
 					sort_order: categories.length
 				});
-				if (!res.ok) return; // keep the draft so the user can retry
-				categories = [...categories, await res.json()];
+				if (!res.ok || !res.data) return; // keep the draft so the user can retry
+				categories = [...categories, res.data];
 			} else if (editingId != null) {
 				const res = await updateCategory(editingId, { name, color: draftColor });
-				if (!res.ok) return;
-				const updated = await res.json();
+				if (!res.ok || !res.data) return;
+				const updated = res.data;
 				categories = categories.map((c) => (c.id === updated.id ? updated : c));
 			}
 			cancel(); // only on success
@@ -360,8 +360,8 @@
 		color: var(--text-muted);
 	}
 
-	/* Móvil: el formulario de edición (input + paleta de 10 colores + acciones) no
-	   cabe en una línea → el nombre ocupa todo el ancho y lo demás baja y envuelve. */
+	/* Mobile: the edit form (input + 10-color palette + actions) doesn't fit on
+	   one line → the name takes full width and the rest drops below and wraps. */
 	@media (max-width: 560px) {
 		.editing {
 			flex-wrap: wrap;

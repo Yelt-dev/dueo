@@ -16,16 +16,16 @@
 	onMount(async () => {
 		const res = await getSubscriptions();
 		if (res.status === 401) return goto('/login');
-		if (res.ok) subs = await res.json();
+		if (res.ok && res.data) subs = res.data;
 		const cats = await getCategories();
-		if (cats.ok) categories = await cats.json();
+		if (cats.ok && cats.data) categories = cats.data;
 		loading = false;
 	});
 
 	const catById = $derived(new Map(categories.map((c) => [c.id, c])));
 	const monthlyOf = monthlyCents;
 
-	// Coste mensual agrupado por moneda (R2: sin conversión).
+	// Monthly cost grouped by currency (R2: no conversion).
 	const byCurrency = $derived.by(() => {
 		const m = new Map<string, number>();
 		for (const s of subs) m.set(s.currency, (m.get(s.currency) ?? 0) + monthlyOf(s));
@@ -34,7 +34,7 @@
 			.sort((a, b) => b.monthly - a.monthly);
 	});
 
-	// Moneda dominante (más suscripciones): base para los desgloses por categoría/top.
+	// Dominant currency (most subscriptions): basis for the category/top breakdowns.
 	const dominantCur = $derived.by(() => {
 		const c = new Map<string, number>();
 		for (const s of subs) c.set(s.currency, (c.get(s.currency) ?? 0) + 1);
@@ -44,7 +44,7 @@
 
 	const inDominant = $derived(subs.filter((s) => s.currency === dominantCur));
 
-	// Gasto mensual por categoría (en la moneda dominante).
+	// Monthly spend per category (in the dominant currency).
 	const byCategory = $derived.by(() => {
 		const m = new Map<number | 'none', number>();
 		for (const s of inDominant) {
@@ -61,12 +61,12 @@
 			};
 		});
 		rows.sort((a, b) => b.monthly - a.monthly);
-		// color: el de la categoría o uno de la paleta Dueo por posición.
+		// color: the category's, or one from the Dueo palette by position.
 		return rows.map((r, i) => ({ ...r, color: r.color ?? DUEO_COLORS[i % DUEO_COLORS.length] }));
 	});
 
-	// Gasto PROYECTADO de los próximos 6 meses (cashflow): simula cada recurrencia
-	// y suma por mes. En la moneda dominante.
+	// Projected spend for the next 6 months (cashflow): simulate each recurrence
+	// and sum per month. In the dominant currency.
 	const months = $derived.by(() => {
 		const now = new Date();
 		return Array.from({ length: 6 }, (_, i) => {
@@ -101,11 +101,11 @@
 	});
 	const projMax = $derived(Math.max(1, ...projected));
 
-	// Top suscripciones por gasto mensual (moneda dominante).
+	// Top subscriptions by monthly spend (dominant currency).
 	const topSubs = $derived([...inDominant].sort((a, b) => monthlyOf(b) - monthlyOf(a)).slice(0, 6));
 	const topMax = $derived(Math.max(1, ...topSubs.map(monthlyOf)));
 
-	// Conteo por estado.
+	// Counts by status.
 	const view = $derived(subs.map((s) => ({ ...s, ...lifecycle(s.start_date, s.due_date) })));
 	const counts = $derived({
 		total: subs.length,
@@ -164,7 +164,7 @@
 		</section>
 
 		<section class="cols">
-			<!-- Donut por categoría -->
+			<!-- Donut by category -->
 			<div class="card" in:fly={{ y: 12, duration: 280, delay: 60 }}>
 				<div class="chead">
 					<Tags size={16} />
@@ -193,7 +193,7 @@
 				</div>
 			</div>
 
-			<!-- Top por gasto -->
+			<!-- Top by spend -->
 			<div class="card" in:fly={{ y: 12, duration: 280, delay: 120 }}>
 				<div class="chead">
 					<CircleDollarSign size={16} />
@@ -218,7 +218,7 @@
 			</div>
 		</section>
 
-		<!-- Gasto proyectado 6 meses (cashflow) -->
+		<!-- Projected 6-month spend (cashflow) -->
 		<div class="card full" in:fly={{ y: 12, duration: 280, delay: 180 }}>
 			<div class="chead">
 				<CalendarRange size={16} />
@@ -361,7 +361,7 @@
 		color: var(--text);
 	}
 
-	/* donut + leyenda */
+	/* donut + legend */
 	.donutwrap {
 		display: flex;
 		align-items: center;
@@ -401,7 +401,7 @@
 		color: var(--text);
 	}
 
-	/* proyección (barras verticales) */
+	/* projection (vertical bars) */
 	.full {
 		margin-top: var(--gap-grid);
 	}
@@ -453,9 +453,9 @@
 			grid-template-columns: 1fr;
 		}
 	}
-	/* Móvil: los importes (nowrap) ensanchaban las columnas y el grid de la
-	   proyección se desbordaba → minmax(0,1fr) lo contiene y el valor parte en
-	   dos líneas (código / cantidad) con fuente menor. */
+	/* Mobile: amounts (nowrap) widened the columns and the projection grid
+	   overflowed → minmax(0,1fr) contains it and the value wraps onto two
+	   lines (code / amount) with a smaller font. */
 	@media (max-width: 640px) {
 		.vbars {
 			grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -472,7 +472,7 @@
 		}
 	}
 
-	/* Móvil estrecho: el donut (168px) + leyenda no caben en fila → apilados. */
+	/* Narrow mobile: donut (168px) + legend don't fit in a row → stacked. */
 	@media (max-width: 480px) {
 		.donutwrap {
 			flex-direction: column;

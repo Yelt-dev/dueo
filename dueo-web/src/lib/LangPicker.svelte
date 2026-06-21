@@ -1,57 +1,45 @@
 <script lang="ts">
 	import { Languages, Check } from '@lucide/svelte';
-	import { fly, fade } from 'svelte/transition';
 	import { i18n, LANGS } from './i18n.svelte';
 	import { updateSettings } from './api';
+	import Popover from './Popover.svelte';
 
 	let open = $state(false);
 
 	function pick(code: string) {
 		i18n.set(code);
 		open = false;
-		// Sincroniza el idioma con el servidor para que los RECORDATORIOS lleguen en
-		// este idioma. Best-effort: si no hay sesión (login) falla en silencio.
+		// Sync the lang to the server so REMINDERS arrive in this language.
+		// Best-effort: fails silently if there's no session (login).
 		updateSettings({ lang: code }).catch(() => {});
 	}
 </script>
 
-<div class="wrap">
-	<button
-		class="trigger"
-		onclick={() => (open = !open)}
-		aria-label={i18n.t('topbar.lang')}
-		title={i18n.t('topbar.lang')}
-		aria-expanded={open}
-	>
-		<Languages size={16} />
-		<span>{i18n.lang.toUpperCase()}</span>
-	</button>
-
-	{#if open}
+<Popover bind:open style="--pop-min-width: 160px">
+	{#snippet trigger({ open, toggle })}
 		<button
-			type="button"
-			class="backdrop"
-			aria-label={i18n.t('common.close')}
-			onclick={() => (open = false)}
-			transition:fade={{ duration: 120 }}
-		></button>
-		<div class="menu" transition:fly={{ y: -6, duration: 160 }}>
-			{#each LANGS as l (l.code)}
-				<button class="opt" class:on={i18n.lang === l.code} onclick={() => pick(l.code)}>
-					<span class="code">{l.code.toUpperCase()}</span>
-					<span class="name">{l.label}</span>
-					{#if i18n.lang === l.code}<Check size={15} />{/if}
-				</button>
-			{/each}
-		</div>
-	{/if}
-</div>
+			class="trigger"
+			onclick={toggle}
+			aria-label={i18n.t('topbar.lang')}
+			title={i18n.t('topbar.lang')}
+			aria-haspopup="menu"
+			aria-expanded={open}
+		>
+			<Languages size={16} />
+			<span>{i18n.lang.toUpperCase()}</span>
+		</button>
+	{/snippet}
+
+	{#each LANGS as l (l.code)}
+		<button class="opt" class:on={i18n.lang === l.code} onclick={() => pick(l.code)}>
+			<span class="code">{l.code.toUpperCase()}</span>
+			<span class="name">{l.label}</span>
+			{#if i18n.lang === l.code}<Check size={15} />{/if}
+		</button>
+	{/each}
+</Popover>
 
 <style>
-	.wrap {
-		position: relative;
-		display: flex;
-	}
 	.trigger {
 		display: inline-flex;
 		align-items: center;
@@ -79,30 +67,6 @@
 		outline: 2px solid var(--brand);
 		outline-offset: 2px;
 	}
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: default;
-	}
-	.menu {
-		position: absolute;
-		top: calc(100% + 8px);
-		right: 0;
-		z-index: 41;
-		min-width: 160px;
-		padding: 5px;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.55);
-	}
 	.opt {
 		display: flex;
 		align-items: center;
@@ -116,6 +80,7 @@
 		text-align: left;
 		cursor: pointer;
 		transition: background 0.12s;
+		width: 100%;
 	}
 	.opt:hover {
 		background: color-mix(in srgb, var(--text) 8%, transparent);

@@ -15,6 +15,7 @@
 	import { timeColor } from './format';
 	import { i18n, daysLabel } from './i18n.svelte';
 	import Icon from './Icon.svelte';
+	import Popover from './Popover.svelte';
 	import type { IconDef } from './icons';
 
 	let {
@@ -62,10 +63,6 @@
 
 	let menuOpen = $state(false);
 	let confirmDelete = $state(false);
-	function closeMenu() {
-		menuOpen = false;
-		confirmDelete = false;
-	}
 
 	const badge = $derived(
 		status === 'paused'
@@ -122,54 +119,57 @@
 	</div>
 
 	<div class="menu">
-		<button
-			class="menubtn"
-			aria-label={i18n.t('row.actions')}
-			onclick={() => {
-				menuOpen = !menuOpen;
-				confirmDelete = false;
-			}}
+		<Popover
+			bind:open={menuOpen}
+			closeLabel={i18n.t('row.closeMenu')}
+			onclose={() => (confirmDelete = false)}
+			style="--pop-bg: var(--surface-2)"
 		>
-			<Ellipsis size={18} />
-		</button>
-		{#if menuOpen}
-			<button
-				type="button"
-				class="backdrop"
-				aria-label={i18n.t('row.closeMenu')}
-				onclick={closeMenu}
-			></button>
-			<div class="dropdown">
+			{#snippet trigger({ open, toggle })}
+				<button
+					class="menubtn"
+					aria-label={i18n.t('row.actions')}
+					aria-haspopup="menu"
+					aria-expanded={open}
+					onclick={toggle}
+				>
+					<Ellipsis size={18} />
+				</button>
+			{/snippet}
+
+			{#snippet children({ close })}
 				{#if canRenew}
 					<button
+						class="item"
 						onclick={() => {
-							closeMenu();
+							close();
 							onrenew?.();
 						}}><RefreshCw size={15} /> {i18n.t('row.renew')}</button
 					>
 				{/if}
 				<button
+					class="item"
 					onclick={() => {
-						closeMenu();
+						close();
 						onedit?.();
 					}}><Pencil size={15} /> {i18n.t('common.edit')}</button
 				>
 				{#if !confirmDelete}
-					<button class="danger" onclick={() => (confirmDelete = true)}>
+					<button class="item danger" onclick={() => (confirmDelete = true)}>
 						<Trash2 size={15} />
 						{i18n.t('common.delete')}
 					</button>
 				{:else}
 					<button
-						class="danger"
+						class="item danger"
 						onclick={() => {
-							closeMenu();
+							close();
 							ondelete?.();
 						}}><Trash2 size={15} /> {i18n.t('common.confirmDelete')}</button
 					>
 				{/if}
-			</div>
-		{/if}
+			{/snippet}
+		</Popover>
 	</div>
 </article>
 
@@ -195,7 +195,7 @@
 			0 0 0 1px color-mix(in srgb, var(--c) 25%, transparent),
 			0 10px 30px -12px color-mix(in srgb, var(--c) 40%, transparent);
 	}
-	/* resalte al llegar desde el Horizonte (clic en el marcador) */
+	/* Highlight when arriving from the Horizon (click on the marker) */
 	.row.highlighted {
 		border-color: var(--brand);
 		animation: rowflash 1.8s ease-out;
@@ -241,7 +241,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* en hover, el nombre completo hace wrap a varias líneas (no se trunca) */
+	/* On hover the full name wraps to multiple lines (no truncation) */
 	.row:hover .name {
 		white-space: normal;
 		overflow: visible;
@@ -320,7 +320,7 @@
 		color: var(--text-muted);
 	}
 
-	/* menú de acciones */
+	/* Actions menu */
 	.menu {
 		position: relative;
 		display: flex;
@@ -346,31 +346,7 @@
 		background: var(--surface-2);
 		border-color: var(--border);
 	}
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: default;
-	}
-	.dropdown {
-		position: absolute;
-		top: calc(100% + 6px);
-		right: 0;
-		z-index: 41;
-		min-width: 170px;
-		padding: 5px;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.55);
-	}
-	.dropdown button {
+	.item {
 		display: flex;
 		align-items: center;
 		gap: 8px;
@@ -385,18 +361,18 @@
 		cursor: pointer;
 		transition: background 0.12s;
 	}
-	.dropdown button:hover {
+	.item:hover {
 		background: color-mix(in srgb, var(--text) 8%, transparent);
 	}
-	.dropdown button.danger {
+	.item.danger {
 		color: var(--danger);
 	}
-	.dropdown button.danger:hover {
+	.item.danger:hover {
 		background: color-mix(in srgb, var(--danger) 14%, transparent);
 	}
 
-	/* Móvil: el grid de 4 columnas no cabe → reorganizamos en filas.
-	   Arriba: icono+nombre · monto · menú. Debajo: la lifebar a todo el ancho. */
+	/* Mobile: the 4-column grid doesn't fit → reflow into rows.
+	   Top: icon+name · amount · menu. Below: the lifebar full width. */
 	@media (max-width: 640px) {
 		.row {
 			grid-template-columns: 1fr auto auto;
@@ -418,7 +394,7 @@
 		.menu {
 			grid-area: menu;
 		}
-		/* en hover el nombre ya no necesita truncado raro en móvil */
+		/* On mobile the name no longer needs odd hover truncation */
 		.left {
 			gap: 0.7rem;
 		}

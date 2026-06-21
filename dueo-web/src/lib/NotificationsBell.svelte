@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Bell, CheckCheck, Inbox, X } from '@lucide/svelte';
-	import { fly, fade } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import {
 		getNotifications,
 		markNotificationRead,
@@ -9,19 +9,21 @@
 		type Notification
 	} from './api';
 	import { i18n } from './i18n.svelte';
+	import { portal } from './actions';
+	import Popover from './Popover.svelte';
 
 	let items = $state<Notification[]>([]);
 	let open = $state(false);
-	let toasts = $state<Notification[]>([]); // avisos transitorios (llegada en vivo)
+	let toasts = $state<Notification[]>([]); // transient toasts (live arrivals)
 
-	// El panel muestra solo el canal in-app (las filas 'telegram' son la misma
-	// notificación entregada por otro canal: no duplicamos en la UI).
+	// The panel shows only the in-app channel ('telegram' rows are the same
+	// notification delivered over another channel: no UI duplication).
 	const inapp = $derived(items.filter((n) => n.channel === 'inapp'));
 	const unread = $derived(inapp.filter((n) => !n.read_at).length);
 
 	async function load() {
 		const res = await getNotifications();
-		if (res.ok) items = await res.json();
+		if (res.ok && res.data) items = res.data;
 	}
 
 	onMount(() => {
@@ -66,27 +68,11 @@
 	});
 
 	function showToast(n: Notification) {
-		toasts = [n, ...toasts].slice(0, 4); // como mucho 4 a la vez
-		setTimeout(() => dismissToast(n.id), 6000); // auto-descartar
+		toasts = [n, ...toasts].slice(0, 4); // at most 4 at once
+		setTimeout(() => dismissToast(n.id), 6000); // auto-dismiss
 	}
 	function dismissToast(id: number) {
 		toasts = toasts.filter((t) => t.id !== id);
-	}
-
-	// Portal: mueve el nodo a <body> para que `position:fixed` sea relativo al
-	// viewport (el topbar usa backdrop-filter, que rompería el fixed si quedara dentro).
-	function portal(node: HTMLElement) {
-		document.body.appendChild(node);
-		return { destroy: () => node.remove() };
-	}
-
-	async function toggle() {
-		open = !open;
-		if (open) await load(); // refresca al abrir
-	}
-
-	function close() {
-		open = false;
 	}
 
 	async function markAll() {
@@ -102,9 +88,9 @@
 		items = items.map((x) => (x.id === n.id ? { ...x, read_at: now } : x));
 	}
 
-	// "hace 3 h" sencillo, sin librería.
+	// Simple "3h ago", no library.
 	function ago(iso: string): string {
-		// el backend guarda UTC sin zona ('YYYY-MM-DD HH:MM:SS'); lo tratamos como UTC.
+		// Backend stores naive UTC ('YYYY-MM-DD HH:MM:SS'); treat it as UTC.
 		const t = new Date(iso.replace(' ', 'T') + 'Z').getTime();
 		const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
 		if (s < 60) return i18n.t('ago.now');
@@ -117,53 +103,54 @@
 	}
 </script>
 
-<div class="wrap">
-	<button class="icon" onclick={toggle} aria-label={i18n.t('notif.title')} aria-expanded={open}>
-		<Bell size={18} />
-		{#if unread > 0}<span class="badge">{unread > 9 ? '9+' : unread}</span>{/if}
-	</button>
-
-	{#if open}
+<Popover
+	bind:open
+	onopen={load}
+	style="--pop-width: 340px; --pop-min-width: 0; --pop-pad: 0; --pop-gap-items: 0; --pop-radius: var(--radius-lg, 16px); --pop-overflow: hidden; --pop-shadow: 0 18px 44px -16px rgba(0, 0, 0, 0.6)"
+>
+	{#snippet trigger({ open, toggle })}
 		<button
-			type="button"
-			class="backdrop"
-			aria-label={i18n.t('common.close')}
-			onclick={close}
-			transition:fade={{ duration: 120 }}
-		></button>
-		<div class="panel" transition:fly={{ y: -8, duration: 180 }}>
-			<header>
-				<span class="title">{i18n.t('notif.title')}</span>
-				{#if unread > 0}
-					<button class="markall" onclick={markAll}
-						><CheckCheck size={14} /> {i18n.t('notif.markAll')}</button
-					>
-				{/if}
-			</header>
+			class="icon"
+			onclick={toggle}
+			aria-label={i18n.t('notif.title')}
+			aria-haspopup="menu"
+			aria-expanded={open}
+		>
+			<Bell size={18} />
+			{#if unread > 0}<span class="badge">{unread > 9 ? '9+' : unread}</span>{/if}
+		</button>
+	{/snippet}
 
-			{#if inapp.length === 0}
-				<div class="empty">
-					<Inbox size={28} />
-					<p>{i18n.t('notif.empty')}</p>
-				</div>
-			{:else}
-				<ul>
-					{#each inapp as n (n.id)}
-						<li>
-							<button class="item" class:unread={!n.read_at} onclick={() => onItem(n)}>
-								{#if !n.read_at}<span class="dot"></span>{/if}
-								<span class="msg">{n.message}</span>
-								<span class="time">{ago(n.created_at)}</span>
-							</button>
-						</li>
-					{/each}
-				</ul>
-			{/if}
+	<header>
+		<span class="title">{i18n.t('notif.title')}</span>
+		{#if unread > 0}
+			<button class="markall" onclick={markAll}
+				><CheckCheck size={14} /> {i18n.t('notif.markAll')}</button
+			>
+		{/if}
+	</header>
+
+	{#if inapp.length === 0}
+		<div class="empty">
+			<Inbox size={28} />
+			<p>{i18n.t('notif.empty')}</p>
 		</div>
+	{:else}
+		<ul>
+			{#each inapp as n (n.id)}
+				<li>
+					<button class="item" class:unread={!n.read_at} onclick={() => onItem(n)}>
+						{#if !n.read_at}<span class="dot"></span>{/if}
+						<span class="msg">{n.message}</span>
+						<span class="time">{ago(n.created_at)}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
 	{/if}
-</div>
+</Popover>
 
-<!-- Toasts (llegada en vivo). use:portal → montados en <body>, fixed al viewport. -->
+<!-- Toasts (live arrivals). use:portal → mounted on <body>, fixed to the viewport. -->
 {#if toasts.length}
 	<div class="toasts" use:portal aria-live="polite">
 		{#each toasts as t (t.id)}
@@ -182,10 +169,6 @@
 {/if}
 
 <style>
-	.wrap {
-		position: relative;
-		display: flex;
-	}
 	.icon {
 		position: relative;
 		display: grid;
@@ -223,30 +206,8 @@
 		border-radius: 999px;
 		border: 2px solid var(--bg-deep);
 	}
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: default;
-	}
-	.panel {
-		position: absolute;
-		top: calc(100% + 8px);
-		right: 0;
-		z-index: 41;
-		width: 340px;
-		max-width: 86vw;
-		/* fondo SÓLIDO (no acrylic): un dropdown de notificaciones debe ser legible */
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg, 16px);
-		box-shadow: 0 18px 44px -16px rgba(0, 0, 0, 0.6);
-		overflow: hidden;
-	}
-	.panel header {
+	/* Panel chrome (width/bg/shadow/overflow) comes from Popover via CSS vars */
+	header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -313,7 +274,7 @@
 		color: var(--text-2);
 		line-height: 1.35;
 	}
-	/* la columna del punto puede faltar (leídas): el mensaje arranca en col 2 igual */
+	/* The dot column may be absent (read items): message still starts at col 2 */
 	.item:not(.unread) .msg {
 		grid-column: 1 / 3;
 	}
@@ -337,7 +298,7 @@
 		font-size: 0.84rem;
 	}
 
-	/* --- Toasts (montados en body por el portal) --- */
+	/* --- Toasts (mounted on body via the portal) --- */
 	.toasts {
 		position: fixed;
 		right: 1.1rem;

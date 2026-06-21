@@ -29,10 +29,10 @@
 	let showAdd = $state(false);
 	let editing = $state<Sub | null>(null);
 	let highlightedId = $state<number | null>(null);
-	let filterId = $state<number | null>(null); // filtro rápido por un item (clic Horizonte)
+	let filterId = $state<number | null>(null); // quick single-item filter (Horizon click)
 	let hlTimer: ReturnType<typeof setTimeout>;
 
-	// Controles de la lista.
+	// List controls.
 	let search = $state('');
 	let statusFilter = $state<'all' | 'active' | 'expired' | 'paused'>('all');
 	let catFilter = $state<'all' | 'none' | number>('all');
@@ -53,7 +53,7 @@
 		sortBy = 'due';
 	}
 
-	// Clic en un marcador del Horizonte → FILTRA la lista a ese item y lo resalta.
+	// Click on a Horizon marker → filter the list to that item and highlight it.
 	function focusSub(id: number) {
 		filterId = id;
 		highlightedId = id;
@@ -69,10 +69,10 @@
 		highlightedId = null;
 	}
 
-	// Mapa id→categoría para resolver nombre/color por fila en O(1).
+	// id→category map for O(1) name/color lookup per row.
 	const catById = $derived(new Map(categories.map((c) => [c.id, c])));
 
-	// Insertar o reemplazar una sub guardada (alta o edición).
+	// Insert or replace a saved sub (create or edit).
 	function onSaved(saved: Sub) {
 		subs = subs.some((x) => x.id === saved.id)
 			? subs.map((x) => (x.id === saved.id ? saved : x))
@@ -107,11 +107,11 @@
 			due_date: due,
 			status: 'active'
 		});
-		if (res.ok) onSaved(await res.json());
+		if (res.ok && res.data) onSaved(res.data);
 		else flashError();
 	}
 
-	// Derivados: enriquecemos cada sub con progreso/días, y calculamos KPIs.
+	// Enrich each sub with progress/days; basis for KPIs and Horizon.
 	const view = $derived(
 		subs.map((s) => ({
 			...s,
@@ -129,8 +129,8 @@
 			color: s.color
 		}))
 	);
-	// Lista resultante. El filtro por clic (filterId) MANDA; si no, aplica controles.
-	// KPIs y Horizonte siempre con todo (vista general).
+	// Resulting list. The click filter (filterId) wins; otherwise apply the controls.
+	// KPIs and Horizon always use the full set (overview).
 	const shownView = $derived.by(() => {
 		if (filterId) return view.filter((s) => s.id === filterId);
 		let r = view;
@@ -151,8 +151,8 @@
 	const filterName = $derived(
 		filterId ? (subs.find((s) => s.id === filterId)?.name ?? null) : null
 	);
-	// R2: en el MVP NO se convierte entre monedas. Agrupamos el coste mensual
-	// POR moneda (normalización por ciclo: anual → /12; resto tal cual).
+	// R2: no currency conversion in the MVP. Group monthly cost per currency
+	// (per-cycle normalization: yearly → /12; the rest as-is).
 	const monthlyByCurrency = $derived.by(() => {
 		const m = new Map<string, number>();
 		for (const s of view) {
@@ -160,7 +160,7 @@
 		}
 		return [...m.entries()]
 			.map(([currency, monthly]) => ({ currency, monthly }))
-			.sort((a, b) => b.monthly - a.monthly); // moneda dominante primero
+			.sort((a, b) => b.monthly - a.monthly); // dominant currency first
 	});
 	const multiCurrency = $derived(monthlyByCurrency.length > 1);
 	const nextDays = $derived(view.length ? Math.min(...view.map((s) => s.days)) : 0);
@@ -169,15 +169,15 @@
 		try {
 			const res = await getSubscriptions();
 			if (res.status === 401) return goto('/login');
-			subs = await res.json();
-			// Solo descargamos el catálogo de marcas si alguna sub usa una marca explícita.
+			if (res.data) subs = res.data;
+			// Only fetch the brand catalog if some sub uses an explicit brand.
 			if (subs.some((s) => s.icon?.startsWith('si:'))) ensureBrands();
 			const cats = await getCategories();
-			if (cats.ok) categories = await cats.json();
+			if (cats.ok && cats.data) categories = cats.data;
 			const m = await me();
-			if (m.ok) userCurrency = (await m.json()).default_currency ?? 'USD';
+			if (m.ok && m.data) userCurrency = m.data.default_currency ?? 'USD';
 		} catch {
-			// backend caído: dejamos lista vacía
+			// backend down: leave the list empty
 		} finally {
 			loading = false;
 		}
@@ -473,7 +473,7 @@
 		font-size: 1.35rem;
 		font-weight: 750;
 	}
-	/* multi-moneda: cada moneda en su línea (sin convertir, R2) */
+	/* multi-currency: one currency per line (no conversion, R2) */
 	.kmulti {
 		display: flex;
 		flex-direction: column;
@@ -517,7 +517,7 @@
 		color: var(--text);
 		border-color: var(--border-strong);
 	}
-	/* controles de la lista */
+	/* list controls */
 	.controls {
 		display: flex;
 		flex-wrap: wrap;
@@ -632,7 +632,7 @@
 		.kpis {
 			grid-template-columns: 1fr;
 		}
-		/* Los chips de estado se salían en una sola fila → 2×2 a todo el ancho. */
+		/* Status chips overflowed a single row → 2×2 full width. */
 		.chips {
 			display: grid;
 			grid-template-columns: 1fr 1fr;
@@ -642,7 +642,7 @@
 		.chips button {
 			text-align: center;
 		}
-		/* Categorías y "ordenar por": cada uno a todo el ancho. */
+		/* Category and "sort by" selects: each full width. */
 		.controls select {
 			flex: 1 1 100%;
 			width: 100%;

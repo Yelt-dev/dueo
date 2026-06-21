@@ -20,8 +20,8 @@
 	import LangPicker from '$lib/LangPicker.svelte';
 
 	let mode = $state<'login' | 'register'>('login');
-	let needsSetup = $state(false); // primera cuenta de la instancia (= admin)
-	let openRegistration = $state(false); // ¿auto-registro permitido tras el admin?
+	let needsSetup = $state(false); // first account of the instance (= admin)
+	let openRegistration = $state(false); // is self-registration allowed after the admin?
 	let username = $state('');
 	let password = $state('');
 	let error = $state('');
@@ -31,8 +31,8 @@
 
 	const isRegister = $derived(mode === 'register' || needsSetup);
 
-	// Fortaleza de contraseña (solo orientativa, al registrar). Puntúa longitud y
-	// variedad de caracteres; se mapea a Débil/Media/Fuerte.
+	// Password strength (guidance only, on register). Scores length and character
+	// variety; mapped to Weak/Medium/Strong.
 	const strength = $derived(scorePassword(password));
 	function scorePassword(p: string) {
 		let score = 0;
@@ -46,7 +46,7 @@
 		return { pct: 100, label: i18n.t('login.strong'), color: 'var(--ok)' };
 	}
 
-	// Aviso de Bloq Mayús: muchos fallos de login son silenciosos por esto.
+	// Caps Lock warning: many login failures are silently caused by it.
 	function checkCaps(e: KeyboardEvent) {
 		capsOn = e.getModifierState?.('CapsLock') ?? false;
 	}
@@ -54,16 +54,16 @@
 	onMount(async () => {
 		try {
 			const res = await getSetupStatus();
-			if (res.ok) {
-				const s = await res.json();
-				openRegistration = !!s.open_registration;
+			if (res.ok && res.data) {
+				const s = res.data;
+				openRegistration = s.open_registration;
 				if (s.needs_setup) {
 					needsSetup = true;
 					mode = 'register';
 				}
 			}
 		} catch {
-			// si falla, seguimos en login normal
+			// on failure, stay on the normal login
 		}
 	});
 
@@ -87,14 +87,14 @@
 					return;
 				}
 				if (!res.ok) {
-					error = (await res.text()) || i18n.t('login.errCreate');
+					error = i18n.t('login.errCreate');
 					return;
 				}
-				// registrado → iniciamos sesión automáticamente.
+				// registered → sign in automatically.
 			}
 			const res = await login(username.trim(), password);
 			if (res.ok) goto('/');
-			else if (res.status === 429) error = await res.text();
+			else if (res.status === 429) error = i18n.t('login.errTooMany');
 			else error = isRegister ? i18n.t('login.errNoEntry') : i18n.t('login.errInvalid');
 		} catch {
 			error = i18n.t('login.errConn');
@@ -238,7 +238,7 @@
 		border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
 	}
 
-	/* input con ícono dentro */
+	/* input with icon inside */
 	.field {
 		display: flex;
 		align-items: center;
@@ -271,7 +271,7 @@
 		color: var(--text-muted);
 	}
 
-	/* botón ojo dentro del campo */
+	/* eye toggle button inside the field */
 	.eye {
 		display: grid;
 		place-items: center;

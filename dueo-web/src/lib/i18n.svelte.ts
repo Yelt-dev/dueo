@@ -1,35 +1,35 @@
-// i18n mínimo (sin librería), Svelte 5 runes. Diccionario plano y `t(key, params?)`
-// reactivo: al leer `lang` dentro de t, cualquier componente que llame i18n.t(...)
-// en su markup se re-renderiza al cambiar de idioma. Persistencia en localStorage.
+// Minimal i18n (no library), Svelte 5 runes. Flat dictionary and a reactive
+// `t(key, params?)`: reading `lang` inside t makes any component calling
+// i18n.t(...) in its markup re-render on language change. Persisted in localStorage.
 //
-// AÑADIR UN IDIOMA: 1) súmalo a LANGS; 2) ve agregando su clave (p. ej. `fr`) a las
-// entradas de DICT. No hace falta traducir todo de golpe: lo que falte cae al idioma
-// por defecto (DEFAULT_LANG) y, si tampoco está, a la propia clave.
+// ADDING A LANGUAGE: 1) add it to LANGS; 2) add its key (e.g. `fr`) to the DICT
+// entries. No need to translate everything at once: anything missing falls back to
+// the default language (DEFAULT_LANG), and failing that, to the key itself.
 
-// Idiomas disponibles (el orden es el del selector). Para sumar uno, añade aquí.
+// Available languages (order is the selector's order). To add one, append here.
 export const LANGS = [
 	{ code: 'es', label: 'Español' },
 	{ code: 'en', label: 'English' }
 ] as const;
 
-export type Lang = string; // un código de LANGS (string para no atarnos a 2)
+export type Lang = string; // a LANGS code (string so we're not locked to 2)
 
 const DEFAULT_LANG: Lang = 'es';
 const isLang = (v: string): boolean => LANGS.some((l) => l.code === v);
 
-// Cada entrada mapea código de idioma → texto. No tiene por qué tener todos los
-// idiomas: los que falten usan el fallback.
+// Each entry maps a language code → text. It need not include every language:
+// missing ones use the fallback.
 type Entry = Record<string, string>;
 
 const DICT: Record<string, Entry> = {
-	// --- Navegación (Sidebar) ---
+	// --- Navigation (Sidebar) ---
 	'nav.dashboard': { es: 'Dashboard', en: 'Dashboard' },
 	'nav.insights': { es: 'Insights', en: 'Insights' },
 	'nav.categories': { es: 'Categorías', en: 'Categories' },
 	'nav.settings': { es: 'Ajustes', en: 'Settings' },
 	'nav.aria': { es: 'Navegación', en: 'Navigation' },
 
-	// --- Página de error ---
+	// --- Error page ---
 	'err.notFoundTitle': { es: 'Página no encontrada', en: 'Page not found' },
 	'err.notFoundText': {
 		es: 'La página que buscas no existe o se movió.',
@@ -49,7 +49,7 @@ const DICT: Record<string, Entry> = {
 	'topbar.lang': { es: 'Cambiar idioma', en: 'Change language' },
 	'topbar.menu': { es: 'Menú', en: 'Menu' },
 
-	// --- Título del documento (layout) ---
+	// --- Document title (layout) ---
 	'doc.home': { es: 'Inicio', en: 'Home' },
 	'doc.login': { es: 'Acceder', en: 'Sign in' },
 	'doc.categories': { es: 'Categorías', en: 'Categories' },
@@ -97,12 +97,16 @@ const DICT: Record<string, Entry> = {
 		en: 'Account created, but could not sign in'
 	},
 	'login.errInvalid': { es: 'Credenciales inválidas', en: 'Invalid credentials' },
+	'login.errTooMany': {
+		es: 'Demasiados intentos. Inténtalo de nuevo más tarde.',
+		en: 'Too many attempts. Try again later.'
+	},
 	'login.errConn': {
 		es: 'No se pudo conectar con el servidor',
 		en: 'Could not connect to the server'
 	},
 
-	// --- Común ---
+	// --- Common ---
 	'common.save': { es: 'Guardar', en: 'Save' },
 	'common.saving': { es: 'Guardando…', en: 'Saving…' },
 	'common.cancel': { es: 'Cancelar', en: 'Cancel' },
@@ -159,7 +163,7 @@ const DICT: Record<string, Entry> = {
 	'dash.statusExpired': { es: 'Vencidas', en: 'Overdue' },
 	'dash.statusPaused': { es: 'Pausadas', en: 'Paused' },
 
-	// --- Fila de suscripción (estados + acciones) ---
+	// --- Subscription row (statuses + actions) ---
 	'row.active': { es: 'Activa', en: 'Active' },
 	'row.paused': { es: 'Pausada', en: 'Paused' },
 	'row.expired': { es: 'Vencida', en: 'Overdue' },
@@ -167,7 +171,7 @@ const DICT: Record<string, Entry> = {
 	'row.closeMenu': { es: 'Cerrar menú', en: 'Close menu' },
 	'row.renew': { es: 'Renovar', en: 'Renew' },
 
-	// --- Etiquetas de tiempo / ciclo / recordatorio ---
+	// --- Time / cycle / reminder labels ---
 	'fmt.overdue': { es: 'vencida', en: 'overdue' },
 	'fmt.dueToday': { es: 'vence hoy', en: 'due today' },
 	'fmt.dueTomorrow': { es: 'vence mañana', en: 'due tomorrow' },
@@ -186,7 +190,7 @@ const DICT: Record<string, Entry> = {
 	'ago.hour': { es: 'hace {n} h', en: '{n}h ago' },
 	'ago.day': { es: 'hace {n} d', en: '{n}d ago' },
 
-	// --- Modal de suscripción ---
+	// --- Subscription modal ---
 	'modal.newSub': { es: 'Nueva suscripción', en: 'New subscription' },
 	'modal.name': { es: 'Nombre', en: 'Name' },
 	'modal.namePlaceholder': { es: 'Netflix, Dominio, Hosting…', en: 'Netflix, Domain, Hosting…' },
@@ -230,12 +234,12 @@ const DICT: Record<string, Entry> = {
 		en: 'Could not create the subscription'
 	},
 
-	// --- Notificaciones ---
+	// --- Notifications ---
 	'notif.title': { es: 'Notificaciones', en: 'Notifications' },
 	'notif.markAll': { es: 'Marcar todo', en: 'Mark all' },
 	'notif.empty': { es: 'Sin notificaciones todavía.', en: 'No notifications yet.' },
 
-	// --- Horizonte ---
+	// --- Horizon ---
 	'hz.title': { es: 'Horizonte de vencimientos', en: 'Due-date horizon' },
 	'hz.hint': {
 		es: 'pellizca o Ctrl+rueda = zoom · arrastra = mover',
@@ -245,7 +249,7 @@ const DICT: Record<string, Entry> = {
 	'hz.now': { es: 'HOY', en: 'NOW' },
 	'hz.all': { es: 'Todo', en: 'All' },
 
-	// --- Categorías ---
+	// --- Categories ---
 	'cat.title': { es: 'Categorías', en: 'Categories' },
 	'cat.new': { es: 'Nueva', en: 'New' },
 	'cat.hint': {
@@ -282,7 +286,7 @@ const DICT: Record<string, Entry> = {
 	},
 	'ins.noCategory': { es: 'Sin categoría', en: 'No category' },
 
-	// --- Ajustes ---
+	// --- Settings ---
 	'set.title': { es: 'Ajustes', en: 'Settings' },
 	'set.prefTitle': { es: 'Preferencias', en: 'Preferences' },
 	'set.prefDesc': {
@@ -383,6 +387,8 @@ const DICT: Record<string, Entry> = {
 		es: 'La contraseña debe tener al menos 8 caracteres',
 		en: 'Password must be at least 8 characters'
 	},
+	'set.usersErrCreate': { es: 'No se pudo crear', en: "Couldn't create user" },
+	'set.usersErrDelete': { es: 'No se pudo borrar', en: "Couldn't delete user" },
 	'set.secTitle': { es: 'Seguridad', en: 'Security' },
 	'set.secDesc': {
 		es: 'Cambia tu contraseña o cierra la sesión en todos los dispositivos.',
@@ -431,12 +437,12 @@ function createI18n() {
 				const saved = localStorage.getItem('lang');
 				if (saved && isLang(saved)) l = saved;
 				else {
-					// del navegador: casa el prefijo (es-MX → es) con un idioma disponible.
+					// from the browser: match the prefix (es-MX → es) to an available language.
 					const nav = navigator.language?.toLowerCase().split('-')[0] ?? '';
 					if (isLang(nav)) l = nav;
 				}
 			} catch {
-				/* sin storage: queda el idioma por defecto */
+				/* no storage: keep the default language */
 			}
 			lang = l;
 			document.documentElement.lang = l;
@@ -451,11 +457,11 @@ function createI18n() {
 			}
 			document.documentElement.lang = l;
 		},
-		// Traduce una clave; interpola {param} si se pasan. Fallback: idioma actual →
-		// idioma por defecto → la propia clave (así un idioma incompleto no rompe nada).
+		// Translate a key; interpolate {param} if provided. Fallback: current language →
+		// default language → the key itself (so an incomplete language breaks nothing).
 		t(key: string, params?: Record<string, string | number>): string {
 			const entry = DICT[key];
-			let s = entry ? (entry[lang] ?? entry[DEFAULT_LANG] ?? key) : key; // leer `lang` → reactivo
+			let s = entry ? (entry[lang] ?? entry[DEFAULT_LANG] ?? key) : key; // read `lang` → reactive
 			if (params) {
 				for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
 			}
@@ -466,12 +472,12 @@ function createI18n() {
 
 export const i18n = createI18n();
 
-// Locale para Intl/toLocaleDateString (números, monedas, nombres de mes).
+// Locale for Intl/toLocaleDateString (numbers, currencies, month names).
 export function locale(): Lang {
 	return i18n.lang;
 }
 
-// ---- Helpers de etiqueta (usan i18n.t → reactivos al idioma) ----------------
+// ---- Label helpers (use i18n.t → reactive to language) ----------------------
 
 export function daysLabel(days: number): string {
 	if (days < 0) return i18n.t('fmt.overdue');
