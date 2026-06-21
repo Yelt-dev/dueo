@@ -3,6 +3,13 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.2.0](https://github.com/Yelt-dev/dueo/compare/v0.1.0...v0.2.0) (2026-06-21)
+
+
+### Features
+
+* **web:** typed API client, Popover primitive, settings & modal refactor ([2bc6c9c](https://github.com/Yelt-dev/dueo/commit/2bc6c9c073ff42b587bcb68fdcbc2e08f8c5847f))
+
 ## [0.1.0] — 2026-06-20
 
 Primera versión pública. Panel autoalojado de suscripciones y pagos recurrentes,
