@@ -1,19 +1,27 @@
-# Dueo selfhosted con un comando: `docker compose up -d`.
-# Construye la imagen (front + server) y persiste la base en un volumen.
+# Self-hosted Dueo in one command: `docker compose up -d`.
+# Uses the published image and persists the database in a volume.
+#
+# Update to the latest version:   docker compose pull && docker compose up -d
+# Your data is kept: the SQLite DB lives in the `dueo-data` volume, which is
+# independent of the image. Schema migrations run automatically on startup.
 services:
   dueo:
-    build: .
-    image: dueo:latest
+    # Published multi-arch image (amd64/arm64). Pin a version if you prefer,
+    # e.g. ghcr.io/yelt-dev/dueo:0.2 — `:latest` always pulls the newest release.
+    image: ghcr.io/yelt-dev/dueo:latest
+    # To build from source instead (development), comment out `image:` above and
+    # uncomment the next line, then run `docker compose up -d --build`:
+    # build: .
     container_name: dueo
     restart: unless-stopped
     ports:
       - "3000:3000"          # http://localhost:3000
     volumes:
-      - dueo-data:/data      # la base SQLite vive aquí (persiste entre reinicios)
+      - dueo-data:/data      # SQLite DB lives here (persists across updates)
     environment:
-      # Token del bot de Telegram (opcional). Sin esto, el canal Telegram queda
-      # desactivado y el resto de Dueo funciona igual. Defínelo en un archivo .env
-      # junto a este compose, o expórtalo en tu shell.
+      # Telegram bot token (optional). Without it, the Telegram channel is
+      # disabled and the rest of Dueo works the same. Set it in a .env file next
+      # to this compose, or export it in your shell.
       DUEO_TELEGRAM_BOT_TOKEN: ${DUEO_TELEGRAM_BOT_TOKEN:-}
 
 volumes:

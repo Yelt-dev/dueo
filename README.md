@@ -56,13 +56,33 @@ Requiere Docker con Compose.
 ```bash
 git clone https://github.com/Yelt-dev/dueo.git
 cd dueo
-docker compose up -d --build
+docker compose up -d
 ```
 
 Abre **http://localhost:3000**. En el primer arranque la instancia está vacía y la
 pantalla de acceso te pide **crear la cuenta de administrador** (el primer usuario
 registrado es admin; después el registro queda cerrado salvo que lo abras —ver más
 abajo). La base SQLite se guarda en el volumen `dueo-data` y persiste entre reinicios.
+
+El `docker-compose.yml` usa la imagen publicada `ghcr.io/yelt-dev/dueo:latest`. Para
+compilar desde el código en su lugar, descomenta `build: .` en el compose y arranca con
+`docker compose up -d --build` (ver «Compilar desde el código»).
+
+## Actualizar
+
+Tu base de datos vive en el volumen `dueo-data`, **independiente de la imagen**, así que
+actualizar **no afecta tus datos**: las migraciones de esquema se aplican solas al
+arrancar. Para pasar a la última versión:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Esto baja la última imagen publicada, recrea el contenedor y conserva todo (datos +
+configuración). Para fijar una versión concreta en vez de seguir `:latest`, cambia el tag
+en el compose (p. ej. `ghcr.io/yelt-dev/dueo:0.2`). Si prefieres no intervenir, un sidecar
+tipo [Watchtower](https://containrrr.dev/watchtower/) puede vigilar `:latest` y actualizar
+solo.
 
 ## Configuración
 
