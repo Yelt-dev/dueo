@@ -94,6 +94,7 @@ Todo se configura por variables de entorno (o un archivo `.env` junto al binario
 | `DUEO_BIND` | `127.0.0.1:3000` | dirección y puerto de escucha (`0.0.0.0:3000` en contenedor) |
 | `DUEO_OPEN_REGISTRATION` | `0` | permitir auto-registro tras crear el admin |
 | `DUEO_SECURE_COOKIE` | `0` | marcar la cookie de sesión como `Secure` (tras HTTPS) |
+| `DUEO_UPDATE_CHECK` | `1` | comprobar si hay una versión nueva (GET a la API pública de GitHub; sin telemetría). Ponlo a `0` para desactivarlo |
 | `DUEO_TELEGRAM_BOT_TOKEN` | *(vacío)* | activa el canal Telegram |
 | `DUEO_SMTP_HOST` / `PORT` / `USER` / `PASS` / `FROM` | *(vacío)* | activa el canal email (SMTP, STARTTLS) |
 
