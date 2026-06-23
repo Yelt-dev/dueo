@@ -62,12 +62,17 @@ dueo-server/                 # Rust + Axum
     reminders.rs             # reglas de anticipación (globales / por servicio)
     scheduler.rs             # motor de recordatorios (corre cada hora)
     notifications.rs         # panel in-app + stream SSE
-    telegram.rs              # cliente Bot API
+    channels.rs              # abstracción de canales (config/destinos/deliver idempotente)
+    telegram.rs              # canal Telegram (cliente Bot API)
+    email.rs                 # canal email (SMTP vía lettre)
     data.rs                  # export / import
     users.rs                 # gestión de usuarios (admin)
-  migrations/                # 0001..0006, versionadas y embebidas (sqlx::migrate!)
+    update.rs                # aviso de versión nueva (consulta releases de GitHub)
+    validate.rs              # validación de entrada del dominio
+  migrations/                # 0001..0008, versionadas y embebidas (sqlx::migrate!)
 dueo-web/                    # SvelteKit (SPA, ssr=off)
 docs/ARCHITECTURE.md         # este documento
+.github/workflows/          # CI (check/lint/build) + release (release-please + imagen GHCR)
 Dockerfile · docker-compose.yml
 ```
 
@@ -137,7 +142,20 @@ cron del sistema ni colas. Decisiones clave:
   globales para ese servicio.
 - **Tono según el modo de pago.** El mensaje cambia si es domiciliado (informativo)
   o manual (empujón a pagar), con versión *plain* para in-app/log y *HTML* para
-  Telegram, fecha en español.
+  Telegram/email.
+- **Canales desacoplados.** `channels.rs` abstrae los destinos: el in-app siempre se
+  registra; Telegram y email se entregan a través de un `deliver()` con su propia
+  idempotencia (una `LogKey` por canal en `notification_log`), así un fallo de envío
+  reintenta en el siguiente tick sin duplicar lo ya entregado. Los destinos por usuario
+  (`chat_id`, correo) se cargan **una vez por corrida** (sin N+1) y el cliente/SMTP se
+  construyen una sola vez y se reutilizan.
+
+> **Robustez del disparo** (correcciones de timing): el gate de envío dispara una vez
+> por día local **a partir** de la `send_hour` (no solo en el tick exacto), con un mapa
+> en memoria de "última fecha corrida" por usuario; así un tick saltado (suspensión,
+> throttling, reloj sesgado) no pierde el aviso del día. Y los recordatorios se evalúan
+> **antes** del mantenimiento de ciclo, para que un aviso del mismo día no se pierda
+> ante un roll/expire de esa fecha.
 
 ## Recurrencia al vencer
 
@@ -164,6 +182,40 @@ In-app sin recargar, con la pieza más simple que funciona:
 
 SSE en vez de WebSocket porque el flujo es unidireccional (servidor → cliente); si
 algún día hace falta bidireccional, se reevalúa.
+
+## Frontend: decisiones de UI
+
+El front es SvelteKit (Svelte 5, runes) como SPA con `ssr=off`. Las piezas con más
+criterio:
+
+- **i18n reactivo hecho a mano** (~30 líneas de runes, sin librería). Un diccionario
+  `clave → { es, en }`; `t()` **lee `lang` (un `$state`) dentro de la función**, así
+  cambiar idioma re-renderiza todo lo que llama a `t()` sin recargar. Fallback en
+  cadena (idioma actual → idioma por defecto → la propia clave, para que un idioma
+  incompleto no rompa nada) y auto-detección (storage → `navigator.language` → default).
+  El **idioma es independiente de la moneda**: traducir la UI no cambia importes.
+- **Catálogo de marcas perezoso.** Los iconos de marca (Simple Icons, 3000+) no se
+  empaquetan: se hace *code-split* y se traen **bajo demanda** al elegir/mostrar una.
+  Un flag `ready` (`$state`) dispara la re-resolución cuando el catálogo carga, de modo
+  que el icono aparece solo cuando está, sin bloquear el render.
+- **HorizonTimeline a medida.** La línea de tiempo de vencimientos hace un layout
+  **anti-solape por carriles** (estilo ramas de git), conectores Bézier, *zoom anclado
+  al cursor* (se mantiene fija la fecha bajo el puntero al hacer zoom) y un gradiente de
+  urgencia con opacidad según proximidad. Es un componente propio, no una librería de
+  charting, porque el comportamiento es específico del dominio.
+- **Helpers SVG sin dependencias.** `ring.ts` dibuja anillos de progreso con arcos
+  redondeados y rampa de color HSL (un `polar()` con 0° arriba), y el `DonutChart` usa
+  el truco de `pathLength=100` para componer arcos en **porcentaje** sin calcular
+  circunferencias. Cero dependencias de gráficos.
+- **Tema sin parpadeo + disciplina de skeletons.** Un script inline en `app.html` fija
+  el tema **antes de la hidratación** (no hay *flash* de tema claro). Y en vez de
+  spinners de "Cargando…", los estados de carga usan **skeletons** que clonan la grilla
+  real (cero *layout shift*), con transiciones en toda aparición/desaparición.
+
+- **Cliente API tipado.** Todas las llamadas pasan por un `req<T>() → Res<T>{ ok, status,
+  data, error }`: nunca lanza ante un no-2xx, centraliza el 401 (redirige a login una
+  sola vez) y declara `Content-Type` solo cuando hay cuerpo. Cada endpoint expone su
+  tipo de retorno.
 
 ## Detalles de API que reflejan criterio
 
@@ -203,6 +255,19 @@ El `Dockerfile` es multi-stage: build del front (Node) → build del server embe
 (Rust) → imagen runtime mínima (`debian-slim`) con solo el binario y un volumen para
 `dueo.db`.
 
+**CI/CD.** GitHub Actions valida cada push/PR (front: `check`/`lint`/`build`; server:
+`fmt`/`clippy -D warnings`/`build`, construyendo el front antes porque `rust-embed`
+apunta a `dueo-web/build/`). Las **releases** se automatizan con *release-please*
+(Conventional Commits → PR de release que bumpea versión + CHANGELOG; al mergearlo se
+crea el tag/Release y, en el mismo run, se construye y publica la **imagen multi-arch
+en GHCR**, amd64+arm64 en runners nativos). Con la imagen publicada, actualizar es
+`docker compose pull && docker compose up -d` (los datos persisten en el volumen).
+
+**Aviso de versión nueva** (`update.rs`): `GET /api/update` compara la versión en
+ejecución con la última release de GitHub y la UI avisa en *Ajustes → Acerca de*. Solo
+**notifica** (un contenedor no se reemplaza a sí mismo); cachea ~24h y es desactivable
+(`DUEO_UPDATE_CHECK=0`). Es un GET a una API pública, sin telemetría.
+
 ## Seguridad
 
 - Contraseñas con **Argon2** + salt por usuario; nunca en claro.
@@ -211,14 +276,23 @@ El `Dockerfile` es multi-stage: build del front (Node) → build del server embe
 - "Cerrar todas las sesiones" borra las filas de sesión del usuario (revocación real,
   no esperar a que expire un JWT).
 - Aislamiento por `user_id` en cada query (ver arriba) como defensa principal de
-  datos. El token del bot de Telegram vive en variable de entorno, nunca en la BD ni
-  en el código; el destino (chat_id) sí en BD porque es config por usuario.
+  datos. Los **secretos de canal** (token del bot de Telegram, credenciales SMTP) viven
+  en variables de entorno, nunca en la BD ni en el código; solo el **destino por usuario**
+  (`chat_id`, correo) se guarda en BD porque es configuración de cada cuenta.
+- **Endurecimiento adicional:** registro cerrado por defecto (`DUEO_OPEN_REGISTRATION`),
+  *rate-limit* de login (5 intentos / 15 min → 429), cookie `Secure` opcional tras TLS
+  (`DUEO_SECURE_COOKIE`), política de contraseña (mínimo y variedad), expiración de
+  sesiones (30 días) con limpieza periódica, y cabeceras de seguridad en cada respuesta
+  (`X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`).
 
 ## Decisiones diferidas (a propósito)
 
 - **Multi-moneda con conversión** y total normalizado.
+- **i18n de extremo a extremo:** la UI ya es ES/EN reactiva, pero los **mensajes que
+  genera el backend** (recordatorios, errores de validación) aún se emiten en español;
+  falta exponerlos traducibles según el idioma del usuario.
 - **Contratos tipados** front↔back generados desde Rust (`ts-rs`) como única fuente
-  de verdad.
+  de verdad (hoy el cliente está tipado a mano).
 - Emparejamiento de Telegram por código `/start` para chats privados (hoy el destino
   se configura directo, ideal para grupos selfhosted).
 
