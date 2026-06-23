@@ -3,6 +3,13 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.3.1](https://github.com/Yelt-dev/dueo/compare/v0.3.0...v0.3.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **scheduler:** survive skipped send-hour ticks; remind before maintenance ([9d6170c](https://github.com/Yelt-dev/dueo/commit/9d6170c1f4652f5fb4f2118ce900c5b83eed8933))
+
 ## [0.3.0](https://github.com/Yelt-dev/dueo/compare/v0.2.0...v0.3.0) (2026-06-23)
 
 
