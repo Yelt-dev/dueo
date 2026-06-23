@@ -1,6 +1,6 @@
 [package]
 name = "dueo-server"
-version = "0.3.0" # x-release-please-version
+version = "0.3.1" # x-release-please-version
 edition = "2024"
 
 [dependencies]
