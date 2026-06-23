@@ -3,6 +3,14 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.3.0](https://github.com/Yelt-dev/dueo/compare/v0.2.0...v0.3.0) (2026-06-23)
+
+
+### Features
+
+* in-app update check ([ab427e7](https://github.com/Yelt-dev/dueo/commit/ab427e7b9848af021bf6c49af5ee94d70a385a18))
+* in-app update check ([354e7ac](https://github.com/Yelt-dev/dueo/commit/354e7ac45c8d64093f8ce72906e0588b95ee53ed))
+
 ## [0.2.0](https://github.com/Yelt-dev/dueo/compare/v0.1.0...v0.2.0) (2026-06-21)
 
 
