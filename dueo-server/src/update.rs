@@ -39,7 +39,10 @@ pub type UpdateCache = Mutex<Option<(Instant, UpdateInfo)>>;
 // turns it off.
 fn enabled() -> bool {
     match std::env::var("DUEO_UPDATE_CHECK") {
-        Ok(v) => !matches!(v.trim().to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off"),
+        Ok(v) => !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "no" | "off"
+        ),
         Err(_) => true,
     }
 }
