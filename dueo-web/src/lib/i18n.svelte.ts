@@ -421,7 +421,19 @@ const DICT: Record<string, Entry> = {
 	'set.online': { es: 'En línea', en: 'Online' },
 	'set.offline': { es: 'Sin conexión', en: 'Offline' },
 	'set.project': { es: 'Proyecto', en: 'Project' },
-	'set.repo': { es: 'Repositorio', en: 'Repository' }
+	'set.repo': { es: 'Repositorio', en: 'Repository' },
+	'set.update': { es: 'Actualización', en: 'Update' },
+	'set.updateLatest': { es: 'Estás en la última versión', en: "You're on the latest version" },
+	'set.updateAvail': {
+		es: 'Disponible {version}',
+		en: '{version} available'
+	},
+	'set.updateView': { es: 'Ver release', en: 'View release' },
+	'set.updateHow': { es: 'Cómo actualizar', en: 'How to update' },
+	'set.updateCmd': {
+		es: 'En el servidor, ejecuta:',
+		en: 'On the server, run:'
+	}
 };
 
 function createI18n() {

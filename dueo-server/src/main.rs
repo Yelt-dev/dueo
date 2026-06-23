@@ -8,6 +8,7 @@ mod reminders;
 mod scheduler;
 mod subscriptions;
 mod telegram;
+mod update;
 mod users;
 mod validate;
 
@@ -45,6 +46,8 @@ pub struct AppState {
     pub db: SqlitePool,
     pub tx: tokio::sync::broadcast::Sender<NotifEvent>,
     pub login_attempts: LoginAttempts,
+    // Cached result of the GitHub update check (None until first fetch).
+    pub update_cache: Arc<update::UpdateCache>,
 }
 
 // API error type and helper, shared across all modules.
@@ -107,6 +110,7 @@ async fn main() {
         db,
         tx,
         login_attempts: Arc::new(Mutex::new(HashMap::new())),
+        update_cache: Arc::new(Mutex::new(None)),
     };
 
     // Background reminder scheduler (hourly, per the user's timezone).
@@ -135,6 +139,8 @@ async fn main() {
         .route("/users/{id}", axum::routing::delete(users::delete))
         // about: instance name + version (public)
         .route("/version", get(version))
+        // about: is there a newer release? (notifies, never auto-updates)
+        .route("/update", get(update::check))
         // subscriptions (CRUD)
         .route(
             "/subscriptions",

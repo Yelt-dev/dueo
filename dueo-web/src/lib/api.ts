@@ -120,6 +120,19 @@ export type VersionInfo = { name: string; version: string };
 export const getVersion = () => req<VersionInfo>('/version');
 export const getHealth = () => req<string>('/health');
 
+// Update check: the running version vs the latest GitHub release. `checked` is
+// false when the check is opt-out (DUEO_UPDATE_CHECK=0) or the network failed.
+export type UpdateInfo = {
+	current: string;
+	latest: string | null;
+	update_available: boolean;
+	url: string | null;
+	published_at: string | null;
+	checked: boolean;
+};
+
+export const getUpdate = () => req<UpdateInfo>('/update');
+
 // ---- Subscriptions ---------------------------------------------------------
 
 export type Sub = {
