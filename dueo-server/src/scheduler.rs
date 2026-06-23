@@ -411,19 +411,25 @@ fn log_key<'a>(c: &'a Candidate, channel: &'a str) -> crate::channels::LogKey<'a
 // when it's their send hour (send_hour) in THEIR timezone. "Today" is computed in
 // the user's timezone, not UTC. Idempotency makes extra runs harmless.
 pub async fn run_loop(state: AppState) {
-    // Catch-up on startup: if today's send hour has ALREADY passed, evaluate now
-    // (so we don't miss the reminder after a restart); if it hasn't, wait for the tick.
-    run_due_users(&state, true).await;
+    // Per-user date of the last reminder run, in memory (no persistence needed:
+    // an empty map after a restart just re-evaluates today, which is idempotent).
+    // It's what makes the send-hour gate survive skipped ticks: we fire once a
+    // day at-or-after send_hour, not only on an exact `hour == send_hour` tick.
+    let mut last_run: HashMap<i64, String> = HashMap::new();
+
+    // Evaluate immediately on startup (catches up if today's send hour already
+    // passed), then once an hour. The map keeps the extra ticks from duplicating.
+    run_due_users(&state, &mut last_run).await;
 
     let mut tick = tokio::time::interval(Duration::from_secs(3600));
     tick.tick().await; // consume the immediate tick (we already did the catch-up)
     loop {
         tick.tick().await;
-        run_due_users(&state, false).await;
+        run_due_users(&state, &mut last_run).await;
     }
 }
 
-async fn run_due_users(state: &AppState, startup: bool) {
+async fn run_due_users(state: &AppState, last_run: &mut HashMap<i64, String>) {
     use chrono::Timelike;
 
     let users: Vec<(i64, String, i64)> =
@@ -446,37 +452,39 @@ async fn run_due_users(state: &AppState, startup: bool) {
 
         let today = local.format("%Y-%m-%d").to_string();
 
-        // Lifecycle maintenance: on EVERY tick (independent of the send hour), so
-        // auto-pay subscriptions roll and manual ones expire on time.
+        // Reminder gate: fire once per local day, at or after the user's send
+        // hour. `hour >= send_hour` (not `==`) plus the last-run guard means a
+        // skipped or delayed tick (suspension, throttling, clock skew) still
+        // sends today's reminder instead of losing it until tomorrow.
+        let already_ran = last_run.get(&uid).map(String::as_str) == Some(today.as_str());
+        if hour >= send_hour && !already_ran {
+            // Reminders run BEFORE maintenance so a same-day notice (e.g.
+            // days_before=0) is evaluated against the current due_date, never
+            // lost to a roll/expire of that very date.
+            match run_once(state, Some(today.clone()), Some(uid)).await {
+                Ok(r)
+                    if r.inapp > 0
+                        || r.telegram_sent > 0
+                        || r.telegram_failed > 0
+                        || r.email_sent > 0
+                        || r.email_failed > 0 =>
+                {
+                    println!(
+                        "[scheduler] user {uid}: in-app {} · telegram {}/{} · email {}/{}",
+                        r.inapp, r.telegram_sent, r.telegram_failed, r.email_sent, r.email_failed
+                    )
+                }
+                Ok(_) => {}
+                Err(e) => eprintln!("[scheduler] user {uid} error: {e}"),
+            }
+            last_run.insert(uid, today.clone());
+        }
+
+        // Lifecycle maintenance runs on EVERY tick (independent of the send
+        // hour) so auto-pay subscriptions roll and manual ones expire on time;
+        // it comes AFTER the reminder gate (see above).
         if let Err(e) = maintain(&state.db, &today, Some(uid)).await {
             eprintln!("[scheduler] maintain user {uid} error: {e}");
-        }
-
-        // Normal tick: only at the exact hour. On startup: catch-up if it already passed.
-        let should = if startup {
-            hour >= send_hour
-        } else {
-            hour == send_hour
-        };
-        if !should {
-            continue;
-        }
-
-        match run_once(state, Some(today), Some(uid)).await {
-            Ok(r)
-                if r.inapp > 0
-                    || r.telegram_sent > 0
-                    || r.telegram_failed > 0
-                    || r.email_sent > 0
-                    || r.email_failed > 0 =>
-            {
-                println!(
-                    "[scheduler] user {uid}: in-app {} · telegram {}/{} · email {}/{}",
-                    r.inapp, r.telegram_sent, r.telegram_failed, r.email_sent, r.email_failed
-                )
-            }
-            Ok(_) => {}
-            Err(e) => eprintln!("[scheduler] user {uid} error: {e}"),
         }
     }
 }
@@ -495,15 +503,16 @@ pub async fn run_now(
     user: AuthUser,
     Query(q): Query<RunQuery>,
 ) -> Result<Json<RunReport>, ApiError> {
-    // Same order as the real loop: maintenance first, then reminders.
+    // Same order as the real loop: reminders FIRST, then maintenance, so a
+    // same-day notice isn't lost to a roll/expire of that due date.
     let today = q
         .date
         .clone()
         .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
-    maintain(&state.db, &today, Some(user.user_id))
+    let report = run_once(&state, q.date, Some(user.user_id))
         .await
         .map_err(internal)?;
-    let report = run_once(&state, q.date, Some(user.user_id))
+    maintain(&state.db, &today, Some(user.user_id))
         .await
         .map_err(internal)?;
     Ok(Json(report))
