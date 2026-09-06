@@ -143,6 +143,13 @@ const DICT: Record<string, Entry> = {
 	'dash.noConversion': { es: 'sin conversión', en: 'no conversion' },
 	'dash.nextDue': { es: 'Próximo vencimiento', en: 'Next due' },
 	'dash.inDays': { es: 'en {n} días', en: 'in {n} days' },
+	'dash.today': { es: 'hoy', en: 'today' },
+	'dash.tomorrow': { es: 'mañana', en: 'tomorrow' },
+	'dash.noUpcoming': { es: 'nada pendiente', en: 'nothing upcoming' },
+	'dash.oneOverdue': { es: '1 vencida', en: '1 overdue' },
+	'dash.nOverdue': { es: '{n} vencidas', en: '{n} overdue' },
+	'dash.prorated': { es: 'prorrateado · anual ÷ 12', en: 'prorated · yearly ÷ 12' },
+	'dash.projection': { es: 'proyección a 12 meses', en: '12-month projection' },
 	'dash.showing': { es: 'Mostrando:', en: 'Showing:' },
 	'dash.showAll': { es: 'Ver todas', en: 'Show all' },
 	'dash.removeFilter': { es: 'Quitar filtro', en: 'Remove filter' },
@@ -162,11 +169,14 @@ const DICT: Record<string, Entry> = {
 	'dash.statusActive': { es: 'Activas', en: 'Active' },
 	'dash.statusExpired': { es: 'Vencidas', en: 'Overdue' },
 	'dash.statusPaused': { es: 'Pausadas', en: 'Paused' },
+	'dash.statusEnded': { es: 'Terminadas', en: 'Ended' },
 
 	// --- Subscription row (statuses + actions) ---
 	'row.active': { es: 'Activa', en: 'Active' },
 	'row.paused': { es: 'Pausada', en: 'Paused' },
 	'row.expired': { es: 'Vencida', en: 'Overdue' },
+	'row.ended': { es: 'Terminada', en: 'Ended' },
+	'row.until': { es: 'hasta {d}', en: 'until {d}' },
 	'row.actions': { es: 'Acciones', en: 'Actions' },
 	'row.closeMenu': { es: 'Cerrar menú', en: 'Close menu' },
 	'row.renew': { es: 'Renovar', en: 'Renew' },
@@ -179,7 +189,10 @@ const DICT: Record<string, Entry> = {
 	'fmt.dueInMonth': { es: 'vence en ~1 mes', en: 'due in ~1 month' },
 	'fmt.dueInMonths': { es: 'vence en ~{n} meses', en: 'due in ~{n} months' },
 	'cycle.monthly': { es: 'mensual', en: 'monthly' },
+	'cycle.quarterly': { es: 'trimestral', en: 'quarterly' },
+	'cycle.semiannual': { es: 'semestral', en: 'semiannual' },
 	'cycle.yearly': { es: 'anual', en: 'yearly' },
+	'cycle.biennial': { es: 'bienal', en: 'biennial' },
 	'cycle.once': { es: 'único', en: 'one-time' },
 	'cycle.days': { es: '{n} días', en: '{n} days' },
 	'rem.sameDay': { es: 'el mismo día', en: 'same day' },
@@ -208,15 +221,45 @@ const DICT: Record<string, Entry> = {
 	'modal.cycle': { es: 'Ciclo', en: 'Cycle' },
 	'modal.cycleMonthly': { es: 'Mensual', en: 'Monthly' },
 	'modal.cycleYearly': { es: 'Anual', en: 'Yearly' },
+	'modal.cycleQuarterly': { es: 'Trimestral', en: 'Quarterly' },
+	'modal.cycleSemiannual': { es: 'Semestral', en: 'Semiannual' },
+	'modal.cycleBiennial': { es: 'Bienal (cada 2 años)', en: 'Biennial (every 2 years)' },
 	'modal.cycleCustom': { es: 'Personalizado', en: 'Custom' },
 	'modal.cycleOnce': { es: 'Único', en: 'One-time' },
 	'modal.everyDays': { es: 'Cada (días)', en: 'Every (days)' },
 	'modal.payment': { es: 'Pago', en: 'Payment' },
 	'modal.paymentManual': { es: 'Manual', en: 'Manual' },
 	'modal.paymentAuto': { es: 'Domiciliado', en: 'Auto-pay' },
-	'modal.start': { es: 'Inicio', en: 'Start' },
-	'modal.due': { es: 'Vencimiento', en: 'Due date' },
+	'modal.start': { es: 'Contratado el', en: 'Started on' },
+	'modal.due': { es: 'Vence el', en: 'Ends on' },
+	'modal.nextCharge': { es: 'Próximo cobro', en: 'Next charge' },
+	'modal.openEnded': {
+		es: 'Indefinida: no tiene fecha de terminación',
+		en: 'Open-ended: it has no termination date'
+	},
+	'modal.endDate': { es: 'Termina el', en: 'Ends on' },
+	'modal.datesHintEnds': {
+		es: 'Deja de renovarse en esa fecha y pasa a vencida.',
+		en: 'It stops renewing on that date and becomes overdue.'
+	},
+	'modal.datesHintAuto': {
+		es: 'Sin fecha de fin: al llegar el cobro, el ciclo avanza solo. Cambia una fecha y la otra se ajusta.',
+		en: 'No end date: on the charge date the cycle rolls over on its own. Change one date and the other follows.'
+	},
+	'modal.datesHintManual': {
+		es: 'Sin fecha de fin: al llegar el cobro te avisamos para renovar. Cambia una fecha y la otra se ajusta.',
+		en: 'No end date: on the charge date we remind you to renew. Change one date and the other follows.'
+	},
 	'modal.category': { es: 'Categoría', en: 'Category' },
+	'modal.notes': { es: 'Notas (opcional)', en: 'Notes (optional)' },
+	'modal.notesPlaceholder': {
+		es: 'Plan, cuenta, dónde se paga…',
+		en: 'Plan, account, where it is paid…'
+	},
+	'modal.onceHint': {
+		es: 'Pago único: termina en esa fecha y no se renueva.',
+		en: 'One-time payment: it ends on that date and does not renew.'
+	},
 	'modal.noCategory': { es: 'Sin categoría', en: 'No category' },
 	'modal.remTitle': { es: 'Recordatorios de este servicio', en: 'Reminders for this service' },
 	'modal.remHint': {
@@ -228,6 +271,19 @@ const DICT: Record<string, Entry> = {
 	'modal.errName': { es: 'Pon un nombre', en: 'Enter a name' },
 	'modal.errAmount': { es: 'Monto inválido', en: 'Invalid amount' },
 	'modal.errDates': { es: 'Faltan las fechas', en: 'Dates are missing' },
+	'modal.errDueOnce': { es: 'Indica la fecha de vencimiento', en: 'Enter the due date' },
+	'modal.errEndMissing': {
+		es: 'Indica la fecha de terminación o marca «indefinida»',
+		en: 'Enter the termination date or tick “open-ended”'
+	},
+	'modal.errEndOrder': {
+		es: 'La terminación debe ser posterior a la contratación',
+		en: 'The termination date must come after the start date'
+	},
+	'modal.errDateOrder': {
+		es: 'El cobro debe ser posterior a la contratación',
+		en: 'The charge date must come after the start date'
+	},
 	'modal.errSave': { es: 'No se pudo guardar', en: 'Could not save' },
 	'modal.errCreate': {
 		es: 'No se pudo crear la suscripción',
@@ -240,7 +296,10 @@ const DICT: Record<string, Entry> = {
 	'notif.empty': { es: 'Sin notificaciones todavía.', en: 'No notifications yet.' },
 
 	// --- Horizon ---
-	'hz.title': { es: 'Horizonte de vencimientos', en: 'Due-date horizon' },
+	'hz.title': { es: 'Lo que viene', en: "What's coming" },
+	'hz.kindManual': { es: 'la pagas tú', en: 'you pay it' },
+	'hz.kindAuto': { es: 'se cobra sola', en: 'charged automatically' },
+	'hz.kindEnd': { es: 'termina', en: 'ends' },
 	'hz.hint': {
 		es: 'pellizca o Ctrl+rueda = zoom · arrastra = mover',
 		en: 'pinch or Ctrl+wheel = zoom · drag = pan'
@@ -279,6 +338,16 @@ const DICT: Record<string, Entry> = {
 	'ins.byCategory': { es: 'Gasto por categoría', en: 'Spend by category' },
 	'ins.only': { es: 'solo {cur}', en: '{cur} only' },
 	'ins.perMonth': { es: 'al mes', en: 'per month' },
+	'ins.commitment': { es: 'Compromiso mensual', en: 'Monthly commitment' },
+	'ins.commitmentHint': {
+		es: 'En qué se te va el gasto según cuánto te ata cada servicio.',
+		en: 'Where your spend goes, by how much each service ties you down.'
+	},
+	'ins.bucketAuto': { es: 'Fijo, se cobra solo', en: 'Fixed, charged automatically' },
+	'ins.bucketManual': { es: 'Indefinido, lo pagas tú', en: 'Open-ended, you pay it' },
+	'ins.bucketEnds': { es: 'Con fecha de fin', en: 'With an end date' },
+	'ins.bucketOne': { es: '1 servicio', en: '1 service' },
+	'ins.bucketMany': { es: '{n} servicios', en: '{n} services' },
 	'ins.top': { es: 'Top por gasto', en: 'Top by spend' },
 	'ins.projected': {
 		es: 'Gasto proyectado · próximos 6 meses',
@@ -501,10 +570,10 @@ export function daysLabel(days: number): string {
 }
 
 export function cycleLabel(cycle: string, days: number | null): string {
-	if (cycle === 'monthly') return i18n.t('cycle.monthly');
-	if (cycle === 'yearly') return i18n.t('cycle.yearly');
 	if (cycle === 'once') return i18n.t('cycle.once');
-	return i18n.t('cycle.days', { n: days ?? 0 });
+	if (cycle === 'custom') return i18n.t('cycle.days', { n: days ?? 0 });
+	// monthly | quarterly | semiannual | yearly | biennial
+	return i18n.t(`cycle.${cycle}`);
 }
 
 export function reminderLabel(n: number): string {
@@ -516,5 +585,6 @@ export function reminderLabel(n: number): string {
 export function statusLabel(status: string): string {
 	if (status === 'paused') return i18n.t('row.paused');
 	if (status === 'expired') return i18n.t('row.expired');
+	if (status === 'ended') return i18n.t('row.ended');
 	return i18n.t('row.active');
 }

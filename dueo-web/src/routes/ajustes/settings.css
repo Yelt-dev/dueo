@@ -19,9 +19,12 @@
 	padding: 0.55rem 0.7rem;
 	border-radius: 10px;
 	border: 1px solid var(--border);
-	background: var(--surface-2);
+	background-color: var(--surface-2);
 	color: var(--text);
 	font-size: 0.9rem;
+}
+.settings select {
+	padding-right: 2.1rem; /* room for the chevron (see app.css) */
 }
 .settings input:focus-visible,
 .settings select:focus-visible {

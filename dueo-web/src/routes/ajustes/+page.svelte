@@ -90,6 +90,7 @@
 	</header>
 
 	<Collapsible
+		order={0}
 		icon={Clock}
 		title={i18n.t('set.prefTitle')}
 		desc={i18n.t('set.prefDesc')}
@@ -100,6 +101,7 @@
 	</Collapsible>
 
 	<Collapsible
+		order={1}
 		icon={Bell}
 		title={i18n.t('set.remTitle')}
 		desc={i18n.t('set.remDesc')}
@@ -110,6 +112,7 @@
 	</Collapsible>
 
 	<Collapsible
+		order={2}
 		icon={Send}
 		title={i18n.t('set.tgTitle')}
 		desc={i18n.t('set.tgDesc')}
@@ -120,6 +123,7 @@
 	</Collapsible>
 
 	<Collapsible
+		order={3}
 		icon={Mail}
 		title={i18n.t('set.emTitle')}
 		desc={i18n.t('set.emDesc')}
@@ -130,6 +134,7 @@
 	</Collapsible>
 
 	<Collapsible
+		order={4}
 		icon={Database}
 		title={i18n.t('set.dataTitle')}
 		desc={i18n.t('set.dataDesc')}
@@ -141,6 +146,7 @@
 
 	{#if isAdmin}
 		<Collapsible
+			order={5}
 			icon={Users}
 			title={i18n.t('set.usersTitle')}
 			desc={i18n.t('set.usersDesc')}
@@ -152,6 +158,7 @@
 	{/if}
 
 	<Collapsible
+		order={6}
 		icon={Lock}
 		title={i18n.t('set.secTitle')}
 		desc={i18n.t('set.secDesc')}
@@ -162,6 +169,7 @@
 	</Collapsible>
 
 	<Collapsible
+		order={7}
 		icon={Info}
 		title={i18n.t('set.aboutTitle')}
 		desc={i18n.t('set.aboutDesc')}

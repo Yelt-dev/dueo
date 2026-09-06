@@ -25,13 +25,16 @@
 	--danger: #f43f5e;
 	--info: #38bdf8;
 	--aurora: 0.09;
+	--select-chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8b2c4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 [data-theme='light'] {
 	--bg: #f6f7fb;
 	--bg-deep: #edf0f6;
 	--surface: #ffffff;
-	--surface-2: #ffffff;
+	/* Recessed controls (inputs, popovers, chips, ring track). It must differ from
+	   --surface or every field turns invisible on a white card. */
+	--surface-2: #f1f4fa;
 	--surface-deep: #eef1f7;
 	--horizon-glow: 0.22;
 	--glass: rgba(255, 255, 255, 0.66);
@@ -47,6 +50,7 @@
 	--danger: #e11d48;
 	--info: #0ea5e9;
 	--aurora: 0.06;
+	--select-chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* ============================================================
@@ -114,6 +118,58 @@ body {
 }
 .tnum {
 	font-variant-numeric: tabular-nums;
+}
+
+/* Selects: the native arrow is glued to the right edge and ignores the
+   element's padding, so it never lines up with the text inset on the left.
+   Replaced by our own chevron, placed at the same distance from the edge.
+   Components must use `background-color` (not the `background` shorthand) or
+   they wipe this image. */
+select {
+	appearance: none;
+	background-image: var(--select-chev);
+	background-repeat: no-repeat;
+	background-position: right 0.7rem center;
+	background-size: 15px 15px;
+}
+
+/* ============================================================
+   THEME SWITCH — the palette flips every token at once, which without
+   this reads as a hard flash. Browsers with the View Transition API
+   cross-fade a page snapshot (see theme.svelte.ts); the rest get this
+   brief colour easing, applied ONLY while switching so components keep
+   their own transitions the rest of the time.
+   ============================================================ */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+	transition:
+		background-color 260ms ease,
+		border-color 260ms ease,
+		color 260ms ease,
+		fill 260ms ease,
+		stroke 260ms ease,
+		box-shadow 260ms ease !important;
+	transition-delay: 0s !important;
+}
+/* Cross-fade for the View Transition path. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 280ms;
+	animation-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+	html.theme-switching,
+	html.theme-switching *,
+	html.theme-switching *::before,
+	html.theme-switching *::after {
+		transition: none !important;
+	}
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+	}
 }
 
 /* Loading skeleton (STANDARD): never "Loading…", always shimmer blocks shaped

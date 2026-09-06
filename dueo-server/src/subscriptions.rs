@@ -47,6 +47,8 @@ pub struct Subscription {
     cycle_days: Option<i64>,
     start_date: String,
     due_date: String,
+    // NULL = open-ended (renews until cancelled); a date = it terminates there.
+    end_date: Option<String>,
     category_id: Option<i64>,
     payment_mode: String,
     status: String,
@@ -65,6 +67,7 @@ pub struct CreateSub {
     cycle_days: Option<i64>,
     start_date: String,
     due_date: String,
+    end_date: Option<String>,
     category_id: Option<i64>,
     payment_mode: Option<String>,
     notes: Option<String>,
@@ -89,6 +92,7 @@ pub async fn create(
         payment_mode,
         "active",
     )?;
+    crate::validate::end_date(&req.start_date, req.end_date.as_deref())?;
     if let Some(cid) = req.category_id
         && !category_belongs(&state.db, cid, user.user_id)
             .await
@@ -100,10 +104,10 @@ pub async fn create(
     let sub: Subscription = sqlx::query_as(
         "INSERT INTO subscriptions
          (user_id, name, amount_cents, currency, cycle, cycle_days,
-          start_date, due_date, category_id, payment_mode, notes, icon, color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          start_date, due_date, end_date, category_id, payment_mode, notes, icon, color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id, name, amount_cents, currency, cycle, cycle_days,
-                   start_date, due_date, category_id, payment_mode, status, notes,
+                   start_date, due_date, end_date, category_id, payment_mode, status, notes,
                    icon, color",
     )
     .bind(user.user_id) // <- the owner
@@ -114,6 +118,7 @@ pub async fn create(
     .bind(req.cycle_days)
     .bind(&req.start_date)
     .bind(&req.due_date)
+    .bind(&req.end_date)
     .bind(req.category_id)
     .bind(payment_mode)
     .bind(&req.notes)
@@ -134,7 +139,7 @@ pub async fn list(
 ) -> Result<Json<Vec<Subscription>>, ApiError> {
     let subs: Vec<Subscription> = sqlx::query_as(
         "SELECT id, name, amount_cents, currency, cycle, cycle_days,
-                start_date, due_date, category_id, payment_mode, status, notes,
+                start_date, due_date, end_date, category_id, payment_mode, status, notes,
                 icon, color
          FROM subscriptions
          WHERE user_id = ?
@@ -158,7 +163,7 @@ pub async fn get_one(
     // The `AND user_id = ?` makes another user's row "not exist" (404), not 403.
     let sub: Subscription = sqlx::query_as(
         "SELECT id, name, amount_cents, currency, cycle, cycle_days,
-                start_date, due_date, category_id, payment_mode, status, notes,
+                start_date, due_date, end_date, category_id, payment_mode, status, notes,
                 icon, color
          FROM subscriptions
          WHERE id = ? AND user_id = ?",
@@ -186,6 +191,9 @@ pub struct UpdateSub {
     cycle_days: Option<i64>,
     start_date: Option<String>,
     due_date: Option<String>,
+    // Double Option too: null = clear it = back to open-ended.
+    #[serde(default, deserialize_with = "double_option")]
+    end_date: Option<Option<String>>,
     // Double Option: distinguish "key absent" (None → leave untouched) from
     // "sent as null" (Some(None) → set NULL = clear the category).
     // `default` so a PATCH that omits it (e.g. renewal) doesn't wipe it.
@@ -223,6 +231,11 @@ pub async fn update(
     if let Some(s) = &req.status {
         crate::validate::status(s)?;
     }
+    // Only checkable when both dates are in the same request (the UI always
+    // sends the whole form on edit); a lone end_date is left to the caller.
+    if let (Some(start), Some(Some(end))) = (&req.start_date, &req.end_date) {
+        crate::validate::end_date(start, Some(end))?;
+    }
     if let Some(Some(cid)) = req.category_id
         && !category_belongs(&state.db, cid, user.user_id)
             .await
@@ -240,6 +253,7 @@ pub async fn update(
             cycle_days   = COALESCE(?, cycle_days),
             start_date   = COALESCE(?, start_date),
             due_date     = COALESCE(?, due_date),
+            end_date     = CASE WHEN ? THEN ? ELSE end_date END,
             -- if the first ? is true (key was present), use the second ?
             -- (which may be NULL to clear it); otherwise keep the current value.
             category_id  = CASE WHEN ? THEN ? ELSE category_id END,
@@ -251,7 +265,7 @@ pub async fn update(
             updated_at   = datetime('now')
          WHERE id = ? AND user_id = ?
          RETURNING id, name, amount_cents, currency, cycle, cycle_days,
-                   start_date, due_date, category_id, payment_mode, status, notes,
+                   start_date, due_date, end_date, category_id, payment_mode, status, notes,
                    icon, color",
     )
     .bind(req.name)
@@ -261,6 +275,8 @@ pub async fn update(
     .bind(req.cycle_days)
     .bind(req.start_date)
     .bind(req.due_date)
+    .bind(req.end_date.is_some()) // was the end_date key present?
+    .bind(req.end_date.flatten()) // its value (or NULL = open-ended)
     .bind(req.category_id.is_some()) // was the category_id key present?
     .bind(req.category_id.flatten()) // its value (Some(id) or None=NULL)
     .bind(req.payment_mode)
