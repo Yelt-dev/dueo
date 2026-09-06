@@ -34,6 +34,8 @@ pub struct SubscriptionData {
     cycle_days: Option<i64>,
     start_date: String,
     due_date: String,
+    #[serde(default)]
+    end_date: Option<String>,
     category_id: Option<i64>,
     payment_mode: String,
     status: String,
@@ -75,7 +77,7 @@ pub async fn export(
     .map_err(internal)?;
 
     let subscriptions: Vec<SubscriptionData> = sqlx::query_as(
-        "SELECT id, name, amount_cents, currency, cycle, cycle_days, start_date, due_date,
+        "SELECT id, name, amount_cents, currency, cycle, cycle_days, start_date, due_date, end_date,
                 category_id, payment_mode, status, notes, icon, color
          FROM subscriptions WHERE user_id = ? ORDER BY id",
     )
@@ -160,12 +162,13 @@ pub async fn import(
             &s.payment_mode,
             &s.status,
         )?;
+        crate::validate::end_date(&s.start_date, s.end_date.as_deref())?;
         let new_cat = s.category_id.and_then(|old| cat_map.get(&old).copied());
         let (new_id,): (i64,) = sqlx::query_as(
             "INSERT INTO subscriptions
              (user_id, name, amount_cents, currency, cycle, cycle_days, start_date, due_date,
-              category_id, payment_mode, status, notes, icon, color)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+              end_date, category_id, payment_mode, status, notes, icon, color)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(user.user_id)
         .bind(&s.name)
@@ -175,6 +178,7 @@ pub async fn import(
         .bind(s.cycle_days)
         .bind(&s.start_date)
         .bind(&s.due_date)
+        .bind(&s.end_date)
         .bind(new_cat)
         .bind(&s.payment_mode)
         .bind(&s.status)

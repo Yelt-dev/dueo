@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Component, Snippet } from 'svelte';
 	import { ChevronDown } from '@lucide/svelte';
-	import { slide } from 'svelte/transition';
+	import { fly, slide } from 'svelte/transition';
+	import { enter } from './motion';
 
 	// Collapsible card for long sections (e.g. /ajustes). The body is passed as
 	// children and rendered in the parent's scope (its styles still apply).
@@ -10,6 +11,7 @@
 		title,
 		desc = '',
 		open = false,
+		order = 0,
 		ontoggle,
 		children
 	}: {
@@ -17,12 +19,14 @@
 		title: string;
 		desc?: string;
 		open?: boolean;
+		/** Visual position in the page, for the staggered entrance. */
+		order?: number;
 		ontoggle?: () => void;
 		children: Snippet;
 	} = $props();
 </script>
 
-<section class="card" class:open>
+<section class="card" class:open in:fly={enter(order)}>
 	<button type="button" class="head" onclick={ontoggle} aria-expanded={open}>
 		<span class="lead"><Icon size={20} /></span>
 		<div class="meta">

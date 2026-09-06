@@ -4,6 +4,7 @@
 		Pause,
 		TriangleAlert,
 		Calendar,
+		Flag,
 		CreditCard,
 		Wallet,
 		Ellipsis,
@@ -29,6 +30,7 @@
 		days,
 		progress,
 		status = 'active',
+		endsLabel = null,
 		paymentMode = 'manual',
 		brand = null,
 		canRenew = true,
@@ -48,6 +50,7 @@
 		days: number;
 		progress: number;
 		status?: string;
+		endsLabel?: string | null;
 		paymentMode?: string;
 		brand?: { path: string; color: string } | null;
 		canRenew?: boolean;
@@ -69,11 +72,13 @@
 			? { label: i18n.t('row.paused'), icon: Pause, color: 'var(--text-muted)' }
 			: status === 'expired'
 				? { label: i18n.t('row.expired'), icon: TriangleAlert, color: 'var(--danger)' }
-				: { label: i18n.t('row.active'), icon: CircleCheck, color: 'var(--ok)' }
+				: status === 'ended'
+					? { label: i18n.t('row.ended'), icon: Flag, color: 'var(--text-muted)' }
+					: { label: i18n.t('row.active'), icon: CircleCheck, color: 'var(--ok)' }
 	);
 </script>
 
-<article class="row" class:highlighted id={domId} style="--c:{c}">
+<article class="row" class:highlighted class:menuopen={menuOpen} id={domId} style="--c:{c}">
 	<div class="left">
 		<span class="chip" style="--cc:{chipColor}">
 			{#if iconDef}
@@ -107,6 +112,12 @@
 				<Calendar size={12} />
 				{daysLabel(days)}
 			</span>
+			{#if endsLabel}
+				<span class="due">
+					<Flag size={12} />
+					{endsLabel}
+				</span>
+			{/if}
 		</div>
 	</div>
 
@@ -194,6 +205,17 @@
 		box-shadow:
 			0 0 0 1px color-mix(in srgb, var(--c) 25%, transparent),
 			0 10px 30px -12px color-mix(in srgb, var(--c) 40%, transparent);
+	}
+	/* With the menu open the row must NOT be transformed. A transform makes the
+	   row a stacking context (later rows would paint over the open panel, showing
+	   their own "···" through it) and, worse, it becomes the containing block for
+	   `position: fixed`, which shrinks the popover's click-outside backdrop to the
+	   row itself — that's why the menu could only be closed from the trigger.
+	   Sitting above its siblings instead keeps the panel on top. */
+	.row.menuopen {
+		transform: none;
+		position: relative;
+		z-index: 30;
 	}
 	/* Highlight when arriving from the Horizon (click on the marker) */
 	.row.highlighted {

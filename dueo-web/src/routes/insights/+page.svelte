@@ -2,10 +2,21 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fly } from 'svelte/transition';
-	import { LineChart, Layers, CircleDollarSign, Tags, CalendarRange } from '@lucide/svelte';
+	import {
+		LineChart,
+		Layers,
+		CircleDollarSign,
+		Tags,
+		CalendarRange,
+		CreditCard,
+		Wallet,
+		Flag,
+		Scale
+	} from '@lucide/svelte';
 	import { getSubscriptions, getCategories, type Sub, type Category } from '$lib/api';
-	import { lifecycle, money, advanceCycle, monthlyCents } from '$lib/format';
+	import { lifecycle, money, advanceCycle, monthlyCents, isOngoing } from '$lib/format';
 	import { i18n, locale } from '$lib/i18n.svelte';
+	import { enter } from '$lib/motion';
 	import { DUEO_COLORS } from '$lib/icons';
 	import DonutChart from '$lib/DonutChart.svelte';
 
@@ -25,10 +36,14 @@
 	const catById = $derived(new Map(categories.map((c) => [c.id, c])));
 	const monthlyOf = monthlyCents;
 
+	// Only what still costs money feeds the spend figures (paused/ended/cancelled
+	// are history, not budget).
+	const spending = $derived(subs.filter(isOngoing));
+
 	// Monthly cost grouped by currency (R2: no conversion).
 	const byCurrency = $derived.by(() => {
 		const m = new Map<string, number>();
-		for (const s of subs) m.set(s.currency, (m.get(s.currency) ?? 0) + monthlyOf(s));
+		for (const s of spending) m.set(s.currency, (m.get(s.currency) ?? 0) + monthlyOf(s));
 		return [...m.entries()]
 			.map(([currency, monthly]) => ({ currency, monthly }))
 			.sort((a, b) => b.monthly - a.monthly);
@@ -42,7 +57,7 @@
 	});
 	const otherCurrencies = $derived(byCurrency.length > 1);
 
-	const inDominant = $derived(subs.filter((s) => s.currency === dominantCur));
+	const inDominant = $derived(spending.filter((s) => s.currency === dominantCur));
 
 	// Monthly spend per category (in the dominant currency).
 	const byCategory = $derived.by(() => {
@@ -89,6 +104,8 @@
 			let cur: string | null = s.due_date;
 			let guard = 0;
 			while (cur && guard < MAX_RECURRENCES) {
+				// Nothing is charged past the termination date (R4.1).
+				if (s.end_date && cur > s.end_date) break;
 				const d = new Date(cur + 'T00:00:00');
 				if (d > end) break;
 				const idx = idxOf(d);
@@ -107,6 +124,44 @@
 
 	// Counts by status.
 	const view = $derived(subs.map((s) => ({ ...s, ...lifecycle(s.start_date, s.due_date) })));
+	// Where the monthly spend goes, by how much each service ties you down. The
+	// three buckets are disjoint on purpose (an end date wins over payment mode),
+	// so the bars add up to the total.
+	const buckets = $derived.by(() => {
+		const defs = [
+			{
+				key: 'auto',
+				label: i18n.t('ins.bucketAuto'),
+				icon: CreditCard,
+				color: 'var(--brand)',
+				match: (s: Sub) => !s.end_date && s.payment_mode === 'auto'
+			},
+			{
+				key: 'manual',
+				label: i18n.t('ins.bucketManual'),
+				icon: Wallet,
+				color: 'var(--warn)',
+				match: (s: Sub) => !s.end_date && s.payment_mode !== 'auto'
+			},
+			{
+				key: 'ends',
+				label: i18n.t('ins.bucketEnds'),
+				icon: Flag,
+				color: 'var(--text-muted)',
+				match: (s: Sub) => !!s.end_date
+			}
+		];
+		return defs.map((d) => {
+			const rows = inDominant.filter(d.match);
+			return {
+				...d,
+				count: rows.length,
+				monthly: rows.reduce((a, s) => a + monthlyOf(s), 0)
+			};
+		});
+	});
+	const bucketMax = $derived(Math.max(1, ...buckets.map((b) => b.monthly)));
+
 	const counts = $derived({
 		total: subs.length,
 		active: subs.filter((s) => s.status === 'active').length,
@@ -136,7 +191,7 @@
 		<p class="muted">{i18n.t('ins.empty')}</p>
 	{:else}
 		<!-- KPIs -->
-		<section class="grid" in:fly={{ y: 12, duration: 280 }}>
+		<section class="grid" in:fly={enter(0)}>
 			<div class="kpi acrylic">
 				<span class="klabel"><Layers size={14} /> {i18n.t('ins.subscriptions')}</span>
 				<span class="kval tnum">{counts.total}</span>
@@ -165,7 +220,7 @@
 
 		<section class="cols">
 			<!-- Donut by category -->
-			<div class="card" in:fly={{ y: 12, duration: 280, delay: 60 }}>
+			<div class="card" in:fly={enter(1)}>
 				<div class="chead">
 					<Tags size={16} />
 					<h2>{i18n.t('ins.byCategory')}</h2>
@@ -194,7 +249,7 @@
 			</div>
 
 			<!-- Top by spend -->
-			<div class="card" in:fly={{ y: 12, duration: 280, delay: 120 }}>
+			<div class="card" in:fly={enter(2)}>
 				<div class="chead">
 					<CircleDollarSign size={16} />
 					<h2>{i18n.t('ins.top')}</h2>
@@ -218,8 +273,41 @@
 			</div>
 		</section>
 
+		<!-- What ties you down: fixed automatic vs manual vs time-boxed -->
+		<div class="card full" in:fly={enter(3)}>
+			<div class="chead">
+				<Scale size={16} />
+				<h2>{i18n.t('ins.commitment')}</h2>
+				{#if otherCurrencies}<span class="note">{i18n.t('ins.only', { cur: dominantCur })}</span
+					>{/if}
+			</div>
+			<p class="chint">{i18n.t('ins.commitmentHint')}</p>
+			<div class="bars commit">
+				{#each buckets as b (b.key)}
+					<div class="barrow">
+						<span class="blabel">
+							<b.icon size={13} />
+							{b.label}
+							<em
+								>{b.count === 1
+									? i18n.t('ins.bucketOne')
+									: i18n.t('ins.bucketMany', { n: b.count })}</em
+							>
+						</span>
+						<div class="btrack">
+							<div
+								class="bfill"
+								style="width:{(b.monthly / bucketMax) * 100}%; --bc:{b.color}"
+							></div>
+						</div>
+						<span class="bval tnum">{money(b.monthly, dominantCur)}</span>
+					</div>
+				{/each}
+			</div>
+		</div>
+
 		<!-- Projected 6-month spend (cashflow) -->
-		<div class="card full" in:fly={{ y: 12, duration: 280, delay: 180 }}>
+		<div class="card full" in:fly={enter(4)}>
 			<div class="chead">
 				<CalendarRange size={16} />
 				<h2>{i18n.t('ins.projected')}</h2>
@@ -334,6 +422,25 @@
 		grid-template-columns: minmax(80px, 1fr) 2fr auto;
 		align-items: center;
 		gap: 0.6rem;
+	}
+	.chint {
+		margin: -0.25rem 0 0.9rem;
+		font-size: 0.78rem;
+		color: var(--text-2);
+	}
+	/* Wider label column: these rows name a whole bucket, not a service. */
+	.commit .barrow {
+		grid-template-columns: minmax(190px, 1.3fr) 2fr auto;
+	}
+	.commit .blabel {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.commit .blabel em {
+		font-style: normal;
+		font-size: 0.74rem;
+		color: var(--text-muted);
 	}
 	.blabel {
 		font-size: 0.82rem;

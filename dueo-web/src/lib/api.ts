@@ -144,6 +144,8 @@ export type Sub = {
 	cycle_days: number | null;
 	start_date: string;
 	due_date: string;
+	// null = open-ended: it renews until cancelled. A date = it terminates there.
+	end_date: string | null;
 	category_id: number | null;
 	payment_mode: string;
 	status: string;
@@ -160,6 +162,7 @@ export type NewSub = {
 	cycle_days?: number | null;
 	start_date: string;
 	due_date: string;
+	end_date?: string | null;
 	category_id?: number | null;
 	payment_mode: string;
 	notes?: string | null;

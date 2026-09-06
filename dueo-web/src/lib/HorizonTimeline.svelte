@@ -1,27 +1,39 @@
 <script lang="ts">
-	import { Receipt } from '@lucide/svelte';
+	import { tick } from 'svelte';
+	import { Receipt, CreditCard, Wallet, Flag } from '@lucide/svelte';
 	import { timeColor } from './format';
 	import { i18n, locale } from './i18n.svelte';
 	import Icon from './Icon.svelte';
 	import { resolveSubVisual } from './icons';
 
+	// `kind` is what actually happens on that date, which is the distinction that
+	// matters when scanning the line: 'manual' needs you to do something, 'auto'
+	// is just money leaving, 'end' is the contract finishing.
+	type Kind = 'manual' | 'auto' | 'end';
 	type Item = {
 		id: number;
 		name: string;
 		days: number;
 		progress: number;
+		kind?: Kind;
 		icon?: string | null;
 		color?: string | null;
+	};
+	const KIND_ICON = { manual: Wallet, auto: CreditCard, end: Flag };
+	const KIND_LABEL: Record<Kind, string> = {
+		manual: 'hz.kindManual',
+		auto: 'hz.kindAuto',
+		end: 'hz.kindEnd'
 	};
 	let { items = [], onselect }: { items?: Item[]; onselect?: (id: number) => void } = $props();
 
 	// --- geometry ---
-	const LINE_Y = 44; // line y (from bottom); leaves room for ticks
-	const BASE_STEM = 26;
-	const LANE = 40; // VERTICAL spacing between branches
-	const BRANCH_X = 34; // HORIZONTAL offset per branch (git/tree effect)
-	const SLOT = 96; // width reserved per marker (visible name) → anti-overlap
-	const LEFT_PAD = 58;
+	const LINE_Y = 52; // line y (from bottom); leaves room for ticks
+	const BASE_STEM = 32;
+	const LANE = 48; // VERTICAL spacing between branches
+	const BRANCH_X = 38; // HORIZONTAL offset per branch (git/tree effect)
+	const SLOT = 112; // width reserved per marker (visible name) → anti-overlap
+	const LEFT_PAD = 64;
 
 	let viewportEl: HTMLDivElement;
 	let trackW = $state(0);
@@ -103,13 +115,15 @@
 				def: vis.def, // explicit or brand icon
 				brand: vis.brand,
 				chipColor: vis.color, // CHIP color (brand/chosen)
-				urgent: it.days <= 7,
+				kind: (it.kind ?? 'manual') as Kind,
+				// Only actionable dates pulse: an automatic charge can't be missed.
+				urgent: it.days <= 7 && (it.kind ?? 'manual') !== 'auto',
 				op: proximityOpacity(it.days) // base dim by distance
 			};
 		});
 	});
 	const maxLane = $derived(laidOut.length ? Math.max(...laidOut.map((m) => m.lane)) : 0);
-	const trackHeight = $derived(LINE_Y + 132 + (BASE_STEM + maxLane * LANE));
+	const trackHeight = $derived(LINE_Y + 152 + (BASE_STEM + maxLane * LANE));
 	const lineY = $derived(trackHeight - LINE_Y); // line y from the TOP (for the SVG)
 
 	// Curved connector from node (x, lineY) to chip (bx, lineY - by): a cubic that
@@ -188,22 +202,37 @@
 		requestAnimationFrame(() => viewportEl && (viewportEl.scrollLeft = 0));
 	}
 
-	function onWheel(e: WheelEvent) {
+	// While zooming, the markers must NOT glide to their new x: the branches and
+	// nodes are SVG (no transition) and would leave the chip trailing behind for
+	// 0.4s. Cleared shortly after the last wheel event so hovering keeps its ease.
+	let zooming = $state(false);
+	let zoomTimer: ReturnType<typeof setTimeout>;
+
+	async function onWheel(e: WheelEvent) {
 		// Zoom ONLY with trackpad pinch (sets ctrlKey) or Ctrl/Cmd + wheel.
 		// Without modifier: plain wheel = page scroll; lateral = native pan.
 		if (!(e.ctrlKey || e.metaKey)) return;
 		e.preventDefault();
-		const factor = e.deltaY < 0 ? 1.14 : 1 / 1.14;
+		// Zoom proportional to how much was actually scrolled, not a fixed step per
+		// event: a trackpad pinch fires many tiny deltas (smooth) and a mouse notch
+		// one big one (~6%). deltaMode normalizes browsers that report lines/pages.
+		const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+		const factor = Math.min(1.25, Math.max(0.8, Math.exp(-e.deltaY * unit * 0.0006)));
 		const newPPD = clampPPD(pxPerDay * factor);
 		if (newPPD === pxPerDay) return; // hit clamp → no change, keeps preset
 		const rect = viewportEl.getBoundingClientRect();
 		const cx = e.clientX - rect.left;
 		const dayAtCursor = (viewportEl.scrollLeft + cx - LEFT_PAD) / pxPerDay;
+		zooming = true;
+		clearTimeout(zoomTimer);
+		zoomTimer = setTimeout(() => (zooming = false), 140);
 		pxPerDay = newPPD;
 		activePreset = ''; // a real zoom happened now
-		requestAnimationFrame(() => {
-			viewportEl.scrollLeft = dayAtCursor * pxPerDay + LEFT_PAD - cx;
-		});
+		// `tick()` (not rAF): waits for the track's new width to be in the DOM and
+		// corrects the scroll BEFORE the browser paints, so there is no in-between
+		// frame where the content sits at the new scale with the old scroll.
+		await tick();
+		viewportEl.scrollLeft = dayAtCursor * pxPerDay + LEFT_PAD - cx;
 	}
 
 	let dragging = $state(false);
@@ -229,6 +258,15 @@
 			<span>{i18n.t('hz.title')}</span>
 			<span class="sub">{i18n.t('hz.hint')}</span>
 		</div>
+		<ul class="legend">
+			{#each ['manual', 'auto', 'end'] as const as k (k)}
+				{@const KIcon = KIND_ICON[k]}
+				<li>
+					<KIcon size={14} />
+					{i18n.t(KIND_LABEL[k])}
+				</li>
+			{/each}
+		</ul>
 		<div class="presets">
 			{#each PRESETS as p (p.label)}
 				<button class:active={activePreset === p.label} onclick={() => setPreset(p)}
@@ -253,7 +291,7 @@
 		onpointerup={onPointerUp}
 		onpointerleave={onPointerUp}
 	>
-		<div class="track" style="width:{trackWidth}px; height:{trackHeight}px">
+		<div class="track" class:zooming style="width:{trackWidth}px; height:{trackHeight}px">
 			{#if pxPerDay > 0}
 				{#each ticks as t, i (i)}
 					<div class="tick" style="left:{t.x}px">
@@ -275,21 +313,43 @@
 						<path
 							class="branch"
 							class:urgent={m.urgent}
+							class:auto={m.kind === 'auto'}
 							d={branchPath(m, lineY)}
 							style="stroke:{m.color}; opacity:{branchOp(m)}"
 						/>
-						<circle
-							class="node"
-							class:urgent={m.urgent}
-							cx={m.x}
-							cy={lineY}
-							r="6"
-							style="fill:{m.color}; opacity:{nodeOp(m)}"
-						/>
+						{#if m.kind === 'end'}
+							<rect
+								class="node"
+								x={m.x - 6}
+								y={lineY - 6}
+								width="12"
+								height="12"
+								transform="rotate(45 {m.x} {lineY})"
+								style="fill:{m.color}; opacity:{nodeOp(m)}"
+							/>
+						{:else if m.kind === 'auto'}
+							<circle
+								class="node hollow"
+								cx={m.x}
+								cy={lineY}
+								r="6"
+								style="stroke:{m.color}; opacity:{nodeOp(m)}"
+							/>
+						{:else}
+							<circle
+								class="node"
+								class:urgent={m.urgent}
+								cx={m.x}
+								cy={lineY}
+								r="7"
+								style="fill:{m.color}; opacity:{nodeOp(m)}"
+							/>
+						{/if}
 					{/each}
 				</svg>
 
 				{#each laidOut as m (m.id)}
+					{@const KIcon = KIND_ICON[m.kind]}
 					<div
 						class="marker"
 						class:urgent={m.urgent}
@@ -306,16 +366,19 @@
 							m.by}px; --mx:{m.bx}px; --op:{m.op}; --c:{m.color}; --bc:{m.chipColor}"
 					>
 						<span class="name" title={m.name}>{m.name}</span>
-						<span class="days">{m.days}d</span>
+						<span class="days">
+							<KIcon size={13} />
+							{m.days}d
+						</span>
 						<span class="chip">
 							{#if m.def}
-								<Icon def={m.def} size={20} />
+								<Icon def={m.def} size={23} />
 							{:else if m.brand}
-								<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"
+								<svg viewBox="0 0 24 24" width="23" height="23" fill="currentColor"
 									><path d={m.brand.path} /></svg
 								>
 							{:else}
-								<Receipt size={20} />
+								<Receipt size={23} />
 							{/if}
 						</span>
 					</div>
@@ -350,6 +413,22 @@
 	.sub {
 		color: var(--text-muted);
 		font-size: 0.74rem;
+	}
+	/* Legend: the node shapes carry meaning, so they need naming once. */
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		font-size: 0.79rem;
+		color: var(--text-2);
+	}
+	.legend li {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 	}
 	.presets {
 		display: flex;
@@ -388,6 +467,9 @@
 			align-items: stretch;
 			gap: 0.7rem;
 			padding: 0 1rem 0.8rem;
+		}
+		.legend {
+			order: 3;
 		}
 		.presets {
 			align-self: stretch;
@@ -500,6 +582,14 @@
 		stroke: var(--surface);
 		stroke-width: 2.5;
 	}
+	.node.hollow {
+		fill: none;
+		stroke-width: 2;
+	}
+	/* An automatic charge is information, not a task: dashed and calm. */
+	.branch.auto {
+		stroke-dasharray: 3 4;
+	}
 	.node.urgent {
 		animation: nodepulse 1.6s ease-in-out infinite;
 	}
@@ -530,6 +620,10 @@
 			opacity 0.16s ease;
 		will-change: transform;
 	}
+	/* Zoom repositions everything at once: chips move with their branch, not after it. */
+	.track.zooming .marker {
+		transition: none;
+	}
 	.marker:hover {
 		transform: translateX(var(--mx)) translateX(-50%) scale(1.08);
 		z-index: 10;
@@ -547,12 +641,12 @@
 	}
 	/* full name on hover */
 	.marker:hover .name {
-		max-width: 170px;
+		max-width: 190px;
 	}
 	.name {
-		max-width: 90px;
-		margin-bottom: 6px;
-		font-size: 0.8rem;
+		max-width: 104px;
+		margin-bottom: 7px;
+		font-size: 0.86rem;
 		font-weight: 650;
 		color: var(--text);
 		white-space: nowrap;
@@ -561,8 +655,11 @@
 	}
 	/* URGENCY = number of days (time color) */
 	.days {
-		margin-bottom: 5px;
-		font-size: 0.76rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-bottom: 6px;
+		font-size: 0.82rem;
 		font-weight: 800;
 		color: var(--c);
 		font-variant-numeric: tabular-nums;
@@ -571,8 +668,8 @@
 	.chip {
 		display: grid;
 		place-items: center;
-		width: 40px;
-		height: 40px;
+		width: 46px;
+		height: 46px;
 		border-radius: 50%;
 		color: var(--bc);
 		background: color-mix(in srgb, var(--bc) 16%, var(--surface));

@@ -5,8 +5,28 @@ use axum::http::StatusCode;
 
 use crate::ApiError;
 
-const CYCLES: [&str; 4] = ["once", "monthly", "yearly", "custom"];
-const STATUSES: [&str; 5] = ["active", "paused", "expired", "cancelled", "archived"];
+// Calendar-based cycles first (quarterly/semiannual/biennial are month math, so
+// they don't drift on leap years the way a day count does), then the escape
+// hatch: 'custom' every N days.
+const CYCLES: [&str; 7] = [
+    "once",
+    "monthly",
+    "quarterly",
+    "semiannual",
+    "yearly",
+    "biennial",
+    "custom",
+];
+// 'expired' = the date passed and the user has to act. 'ended' = it reached the
+// termination date it was given: nothing is pending, it simply finished.
+const STATUSES: [&str; 6] = [
+    "active",
+    "paused",
+    "expired",
+    "ended",
+    "cancelled",
+    "archived",
+];
 const PAYMENT_MODES: [&str; 2] = ["manual", "auto"];
 const USERNAME_MAX: usize = 64;
 
@@ -54,6 +74,17 @@ pub fn amount(cents: i64) -> Result<(), ApiError> {
         Ok(())
     } else {
         bad("El importe no puede ser negativo")
+    }
+}
+
+// An optional termination date must land after the start date. None = the
+// subscription is open-ended (it renews until the user cancels it).
+pub fn end_date(start: &str, end: Option<&str>) -> Result<(), ApiError> {
+    match end {
+        Some(e) if e <= start => {
+            bad("La fecha de terminación debe ser posterior a la contratación")
+        }
+        _ => Ok(()),
     }
 }
 

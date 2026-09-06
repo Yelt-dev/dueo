@@ -9,7 +9,9 @@
 		deleteCategory,
 		type Category
 	} from '$lib/api';
+	import { fly } from 'svelte/transition';
 	import { i18n } from '$lib/i18n.svelte';
+	import { enter } from '$lib/motion';
 
 	// Suggested palette (live Design System tokens / common brands).
 	const SWATCHES = [
@@ -143,7 +145,7 @@
 			{/each}
 		</section>
 	{:else}
-		<section class="list">
+		<section class="list" in:fly={enter(0)}>
 			{#if editingId === 0}
 				{@render categoryForm(i18n.t('cat.nameFull'))}
 			{/if}

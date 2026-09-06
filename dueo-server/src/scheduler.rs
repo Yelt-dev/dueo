@@ -41,6 +41,13 @@ struct Candidate {
     payment_mode: String,
     days_before: i64,
     lang: String, // user's language (for the messages)
+    end_date: Option<String>,
+}
+
+// The notice lands exactly on the termination date: nothing is charged that day,
+// the service simply ends, so the payment-mode tone (R12) doesn't apply.
+fn is_final(c: &Candidate) -> bool {
+    c.end_date.as_deref() == Some(c.due_date.as_str())
 }
 
 // English? (any other value → Spanish, the default language).
@@ -101,6 +108,12 @@ fn build_plain(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
     let amount = amount_str(c);
     let left = days_left(c.days_before, &c.lang);
+    if is_final(c) {
+        return match is_en(&c.lang) {
+            true => format!("🏁 {} ends on {} ({})", c.name, due, left),
+            false => format!("🏁 {} termina el {} ({})", c.name, due, left),
+        };
+    }
     match (is_en(&c.lang), c.payment_mode == "auto") {
         (true, true) => format!(
             "💳 {} is charged on {} ({}) · {}",
@@ -119,6 +132,16 @@ fn build_telegram(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
     let amount = amount_str(c);
     let left = days_left(c.days_before, &c.lang);
+    if is_final(c) {
+        return match is_en(&c.lang) {
+            true => format!(
+                "🏁 <b>Subscription ending</b>\n\n🧾 <b>{name}</b>\n📅 Ends on <b>{due}</b>\n⌛ {left}\n\n<i>It won't renew after that date.</i>"
+            ),
+            false => format!(
+                "🏁 <b>La suscripción termina</b>\n\n🧾 <b>{name}</b>\n📅 Termina el <b>{due}</b>\n⌛ {left}\n\n<i>No se renovará después de esa fecha.</i>"
+            ),
+        };
+    }
     match (is_en(&c.lang), c.payment_mode == "auto") {
         (true, true) => format!(
             "💳 <b>Automatic charge coming up</b>\n\n🧾 <b>{name}</b>\n💵 {amount}\n📅 Charged on <b>{due}</b>\n⌛ {left}\n\n<i>Make sure you have funds.</i>"
@@ -138,6 +161,12 @@ fn build_telegram(c: &Candidate) -> String {
 // Email subject (no HTML). Tone depends on the payment mode (R12).
 fn build_email_subject(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
+    if is_final(c) {
+        return match is_en(&c.lang) {
+            true => format!("Dueo · {} ends on {}", c.name, due),
+            false => format!("Dueo · {} termina el {}", c.name, due),
+        };
+    }
     match (is_en(&c.lang), c.payment_mode == "auto") {
         (true, true) => format!("Dueo · {} is charged on {}", c.name, due),
         (true, false) => format!("Dueo · {} is due on {}", c.name, due),
@@ -152,6 +181,20 @@ fn build_email_html(c: &Candidate) -> String {
     let due = format_date(&c.due_date, &c.lang);
     let amount = amount_str(c);
     let left = days_left(c.days_before, &c.lang);
+    if is_final(c) {
+        return match is_en(&c.lang) {
+            true => format!(
+                "<h2>🏁 Subscription ending</h2>\
+                 <p><b>{name}</b><br>Ends on <b>{due}</b> ({left})</p>\
+                 <p><i>It won't renew after that date.</i></p>"
+            ),
+            false => format!(
+                "<h2>🏁 La suscripción termina</h2>\
+                 <p><b>{name}</b><br>Termina el <b>{due}</b> ({left})</p>\
+                 <p><i>No se renovará después de esa fecha.</i></p>"
+            ),
+        };
+    }
     match (is_en(&c.lang), c.payment_mode == "auto") {
         (true, true) => format!(
             "<h2>💳 Automatic charge coming up</h2>\
@@ -185,11 +228,17 @@ fn add_cycle(
     use chrono::{Duration, Months};
     match cycle {
         "monthly" => due.checked_add_months(Months::new(1)),
+        "quarterly" => due.checked_add_months(Months::new(3)),
+        "semiannual" => due.checked_add_months(Months::new(6)),
         "yearly" => due.checked_add_months(Months::new(12)),
+        "biennial" => due.checked_add_months(Months::new(24)),
         "custom" => due.checked_add_signed(Duration::days(cycle_days.unwrap_or(30).max(1))),
         _ => None, // once → no recurrence
     }
 }
+
+// One row of the auto-renew pass: (id, due_date, cycle, cycle_days, end_date).
+type OverdueRow = (i64, String, String, Option<i64>, Option<String>);
 
 // Daily lifecycle maintenance (the user's policy):
 // - Overdue recurring auto-pay subscriptions (payment_mode='auto') → AUTO-RENEW: they
@@ -206,11 +255,11 @@ pub async fn maintain(
     };
 
     // 1) Auto-renew overdue recurring auto-pay subscriptions.
-    let overdue: Vec<(i64, String, String, Option<i64>)> = sqlx::query_as(
-        "SELECT id, due_date, cycle, cycle_days
+    let overdue: Vec<OverdueRow> = sqlx::query_as(
+        "SELECT id, due_date, cycle, cycle_days, end_date
          FROM subscriptions
          WHERE status = 'active' AND payment_mode = 'auto'
-           AND cycle IN ('monthly','yearly','custom')
+           AND cycle IN ('monthly','quarterly','semiannual','yearly','biennial','custom')
            AND due_date < ?1
            AND (?2 IS NULL OR user_id = ?2)",
     )
@@ -219,19 +268,36 @@ pub async fn maintain(
     .fetch_all(db)
     .await?;
 
-    for (id, due, cycle, cycle_days) in overdue {
+    for (id, due, cycle, cycle_days, end) in overdue {
         let Ok(mut d) = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d") else {
             continue;
         };
+        // An end_date caps the rolling: past it the contract is over, so the row
+        // stays overdue and step 2 expires it.
+        let end_d = end
+            .as_deref()
+            .and_then(|e| chrono::NaiveDate::parse_from_str(e, "%Y-%m-%d").ok());
         let mut start = d;
         let mut guard = 0;
         while d < today_d && guard < 1200 {
-            match add_cycle(d, &cycle, cycle_days) {
-                Some(nd) => {
+            let Some(nd) = add_cycle(d, &cycle, cycle_days) else {
+                break;
+            };
+            match end_d {
+                // Last period: it is cut short so it lands exactly on the
+                // termination date instead of overshooting it (or expiring the
+                // row early, which would kill it mid-contract).
+                Some(e) if nd > e => {
+                    if d < e {
+                        start = d;
+                        d = e;
+                    }
+                    break;
+                }
+                _ => {
                     start = d; // the previous due date becomes the new start
                     d = nd;
                 }
-                None => break,
             }
             guard += 1;
         }
@@ -245,12 +311,26 @@ pub async fn maintain(
         }
     }
 
-    // 2) Expire the rest of the overdue ones (manual or 'once'); the auto-recurring
-    //    ones already rolled above, so their due_date is no longer < today.
+    // 2) Whatever is still overdue past its own termination date is FINISHED, not
+    //    late: it ran its course and there is nothing for the user to do.
+    sqlx::query(
+        "UPDATE subscriptions SET status = 'ended', updated_at = datetime('now')
+         WHERE status = 'active' AND due_date < ?1
+           AND end_date IS NOT NULL AND due_date >= end_date
+           AND (?2 IS NULL OR user_id = ?2)",
+    )
+    .bind(today)
+    .bind(only_user)
+    .execute(db)
+    .await?;
+
+    // 3) The rest of the overdue ones are late and need the user: the manual ones
+    //    and the 'once' ones (the auto-recurring ones already rolled in step 1, so
+    //    their due_date is no longer < today).
     sqlx::query(
         "UPDATE subscriptions SET status = 'expired', updated_at = datetime('now')
          WHERE status = 'active' AND due_date < ?1
-           AND NOT (payment_mode = 'auto' AND cycle IN ('monthly','yearly','custom'))
+           AND (end_date IS NULL OR due_date < end_date)
            AND (?2 IS NULL OR user_id = ?2)",
     )
     .bind(today)
@@ -276,7 +356,7 @@ pub async fn run_once(
     let candidates: Vec<Candidate> = sqlx::query_as(
         "WITH active AS (
             SELECT s.id, s.user_id, s.due_date, s.name, s.amount_cents, s.currency,
-                   s.payment_mode, u.lang
+                   s.payment_mode, u.lang, s.end_date
             FROM subscriptions s
             JOIN users u ON u.id = s.user_id
             WHERE s.status IN ('active','expired')
@@ -285,14 +365,14 @@ pub async fn run_once(
          eff AS (
             -- the service's own rules
             SELECT a.user_id, a.id AS sub_id, a.due_date, a.name, a.amount_cents,
-                   a.currency, a.payment_mode, a.lang, r.days_before
+                   a.currency, a.payment_mode, a.lang, a.end_date, r.days_before
             FROM active a
             JOIN reminder_rules r
               ON r.subscription_id = a.id AND r.user_id = a.user_id
             UNION ALL
             -- the user's globals, ONLY if the service has no rules of its own
             SELECT a.user_id, a.id, a.due_date, a.name, a.amount_cents,
-                   a.currency, a.payment_mode, a.lang, g.days_before
+                   a.currency, a.payment_mode, a.lang, a.end_date, g.days_before
             FROM active a
             JOIN reminder_rules g
               ON g.subscription_id IS NULL AND g.user_id = a.user_id
@@ -301,7 +381,7 @@ pub async fn run_once(
             )
          )
          SELECT user_id, sub_id, due_date, name, amount_cents, currency,
-                payment_mode, days_before, lang
+                payment_mode, days_before, lang, end_date
          FROM eff
          WHERE date(due_date, '-' || days_before || ' days') = COALESCE(?1, date('now'))",
     )

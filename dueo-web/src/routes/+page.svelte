@@ -17,8 +17,9 @@
 		type Sub,
 		type Category
 	} from '$lib/api';
-	import { lifecycle, money, advanceCycle, monthlyCents } from '$lib/format';
+	import { lifecycle, money, advanceCycle, monthlyCents, shortDate, isOngoing } from '$lib/format';
 	import { i18n, cycleLabel } from '$lib/i18n.svelte';
+	import { enter, reveal } from '$lib/motion';
 	import { resolveSubVisual } from '$lib/icons';
 	import { ensureBrands } from '$lib/brandcat.svelte';
 
@@ -34,13 +35,14 @@
 
 	// List controls.
 	let search = $state('');
-	let statusFilter = $state<'all' | 'active' | 'expired' | 'paused'>('all');
+	let statusFilter = $state<'all' | 'active' | 'expired' | 'ended' | 'paused'>('all');
 	let catFilter = $state<'all' | 'none' | number>('all');
 	let sortBy = $state<'due' | 'amount' | 'name'>('due');
 	const STATUSES = $derived([
 		{ k: 'all', label: i18n.t('dash.statusAll') },
 		{ k: 'active', label: i18n.t('dash.statusActive') },
 		{ k: 'expired', label: i18n.t('dash.statusExpired') },
+		{ k: 'ended', label: i18n.t('dash.statusEnded') },
 		{ k: 'paused', label: i18n.t('dash.statusPaused') }
 	] as const);
 	const anyFilter = $derived(
@@ -102,6 +104,8 @@
 	async function renew(s: Sub) {
 		const due = advanceCycle(s.due_date, s.cycle, s.cycle_days);
 		if (!due) return;
+		if (s.end_date && due > s.end_date) return; // past its termination date
+
 		const res = await updateSubscription(s.id, {
 			start_date: s.due_date,
 			due_date: due,
@@ -119,15 +123,25 @@
 			cyc: cycleLabel(s.cycle, s.cycle_days)
 		}))
 	);
+	// Only what still has something coming, which is exactly what generates
+	// reminders (R9): 'ended', 'cancelled', 'paused' and 'archived' have no next
+	// date to show. `kind` says WHAT happens that day, not just when.
 	const horizon = $derived(
-		view.map((s) => ({
-			id: s.id,
-			name: s.name,
-			days: s.days,
-			progress: s.progress,
-			icon: s.icon,
-			color: s.color
-		}))
+		view
+			.filter((s) => s.status === 'active' || s.status === 'expired')
+			.map((s) => ({
+				id: s.id,
+				name: s.name,
+				days: s.days,
+				progress: s.progress,
+				kind: (s.end_date && s.due_date >= s.end_date
+					? 'end'
+					: s.payment_mode === 'auto'
+						? 'auto'
+						: 'manual') as 'manual' | 'auto' | 'end',
+				icon: s.icon,
+				color: s.color
+			}))
 	);
 	// Resulting list. The click filter (filterId) wins; otherwise apply the controls.
 	// KPIs and Horizon always use the full set (overview).
@@ -155,7 +169,8 @@
 	// (per-cycle normalization: yearly → /12; the rest as-is).
 	const monthlyByCurrency = $derived.by(() => {
 		const m = new Map<string, number>();
-		for (const s of view) {
+		// Only what still costs money: a paused or finished service is not spend.
+		for (const s of view.filter(isOngoing)) {
 			m.set(s.currency, (m.get(s.currency) ?? 0) + monthlyCents(s));
 		}
 		return [...m.entries()]
@@ -163,7 +178,20 @@
 			.sort((a, b) => b.monthly - a.monthly); // dominant currency first
 	});
 	const multiCurrency = $derived(monthlyByCurrency.length > 1);
-	const nextDays = $derived(view.length ? Math.min(...view.map((s) => s.days)) : 0);
+	// The NEXT one is the soonest still ahead of us; a date already gone is not
+	// "next", it's overdue, and that's counted apart instead of shown as -78 days.
+	const upcoming = $derived(view.filter((s) => isOngoing(s) && s.days >= 0));
+	const nextDays = $derived(upcoming.length ? Math.min(...upcoming.map((s) => s.days)) : null);
+	const overdueCount = $derived(view.filter((s) => isOngoing(s) && s.days < 0).length);
+	const nextDueLabel = $derived(
+		nextDays === null
+			? i18n.t('dash.noUpcoming')
+			: nextDays === 0
+				? i18n.t('dash.today')
+				: nextDays === 1
+					? i18n.t('dash.tomorrow')
+					: i18n.t('dash.inDays', { n: nextDays })
+	);
 
 	onMount(async () => {
 		try {
@@ -221,7 +249,7 @@
 			{#each Array(4) as _, i (i)}<RowSkeleton />{/each}
 		</section>
 	{:else if view.length === 0}
-		<div class="empty">
+		<div class="empty" in:fly={enter(0)}>
 			<Inbox size={40} />
 			<h2>{i18n.t('dash.emptyTitle')}</h2>
 			<p>{i18n.t('dash.emptyText')}</p>
@@ -234,12 +262,13 @@
 			>
 		</div>
 	{:else}
-		<section class="kpis">
+		<section class="kpis" in:fly={enter(0)}>
 			<div class="kpi acrylic">
 				<span class="klabel">
 					{i18n.t('dash.monthly')}
 					{#if multiCurrency}<span class="note">{i18n.t('dash.noConversion')}</span>{/if}
 				</span>
+				<span class="ksub">{i18n.t('dash.prorated')}</span>
 				{#if multiCurrency}
 					<div class="kmulti">
 						{#each monthlyByCurrency as t (t.currency)}
@@ -257,6 +286,7 @@
 					{i18n.t('dash.annual')}
 					{#if multiCurrency}<span class="note">{i18n.t('dash.noConversion')}</span>{/if}
 				</span>
+				<span class="ksub">{i18n.t('dash.projection')}</span>
 				{#if multiCurrency}
 					<div class="kmulti">
 						{#each monthlyByCurrency as t (t.currency)}
@@ -274,21 +304,30 @@
 			</div>
 			<div class="kpi acrylic">
 				<span class="klabel">{i18n.t('dash.nextDue')}</span>
-				<span class="kval tnum">{i18n.t('dash.inDays', { n: nextDays })}</span>
+				<span class="kval tnum">{nextDueLabel}</span>
+				{#if overdueCount}
+					<span class="ksub late">
+						{overdueCount === 1
+							? i18n.t('dash.oneOverdue')
+							: i18n.t('dash.nOverdue', { n: overdueCount })}
+					</span>
+				{/if}
 			</div>
 		</section>
 
-		<HorizonTimeline items={horizon} onselect={focusSub} />
+		<div in:fly={enter(1)}>
+			<HorizonTimeline items={horizon} onselect={focusSub} />
+		</div>
 
 		{#if filterName}
-			<div class="filterbar">
+			<div class="filterbar" in:fly={enter(2)}>
 				<span>{i18n.t('dash.showing')} <strong>{filterName}</strong></span>
 				<button onclick={clearFilter} aria-label={i18n.t('dash.removeFilter')}
 					>{i18n.t('dash.showAll')} <X size={14} /></button
 				>
 			</div>
 		{:else}
-			<div class="controls">
+			<div class="controls" in:fly={enter(2)}>
 				<div class="searchbox">
 					<Search size={15} />
 					<input bind:value={search} placeholder={i18n.t('dash.searchPlaceholder')} />
@@ -337,7 +376,7 @@
 				{@const vis = resolveSubVisual(s, cat?.color)}
 				<div
 					animate:flip={{ duration: 280 }}
-					in:fly={{ y: 12, duration: 320, delay: Math.min(i, 8) * 40 }}
+					use:reveal={3 + Math.min(i, 8)}
 					out:fade={{ duration: 140 }}
 				>
 					<SubscriptionRow
@@ -355,7 +394,10 @@
 						progress={s.progress}
 						status={s.status}
 						paymentMode={s.payment_mode}
-						canRenew={s.cycle !== 'once'}
+						endsLabel={s.end_date ? i18n.t('row.until', { d: shortDate(s.end_date) }) : null}
+						canRenew={s.cycle !== 'once' &&
+							s.status !== 'ended' &&
+							!(s.end_date && s.due_date >= s.end_date)}
 						onrenew={() => renew(s)}
 						onedit={() => editSub(s)}
 						ondelete={() => del(s)}
@@ -458,6 +500,15 @@
 		gap: 0.4rem;
 		font-size: 0.78rem;
 		color: var(--text-muted);
+	}
+	.ksub {
+		margin-top: 2px;
+		font-size: 0.68rem;
+		color: var(--text-2);
+	}
+	.ksub.late {
+		color: var(--danger);
+		font-weight: 600;
 	}
 	.note {
 		font-size: 0.62rem;
@@ -578,9 +629,11 @@
 	}
 	.controls select {
 		padding: 0.5rem 0.6rem;
+		padding-right: 1.95rem; /* room for the chevron (see app.css) */
 		border-radius: 10px;
 		border: 1px solid var(--border);
-		background: var(--surface);
+		background-color: var(--surface);
+		background-position: right 0.6rem center; /* match this box's inset */
 		color: var(--text);
 		font-size: 0.85rem;
 		cursor: pointer;
