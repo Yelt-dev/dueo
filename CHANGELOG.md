@@ -3,6 +3,14 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.4.0](https://github.com/Yelt-dev/dueo/compare/v0.3.1...v0.4.0) (2026-09-06)
+
+
+### Features
+
+* **subscriptions:** open-ended vs terminated services ([38c2fc4](https://github.com/Yelt-dev/dueo/commit/38c2fc44a23dd32fad306b09a9556a441e2f4f9a))
+* **subscriptions:** open-ended vs terminated services ([2c5e00d](https://github.com/Yelt-dev/dueo/commit/2c5e00d3352b3f150e6425c5a791d8fc7470b66d))
+
 ## [0.3.1](https://github.com/Yelt-dev/dueo/compare/v0.3.0...v0.3.1) (2026-06-23)
 
 
