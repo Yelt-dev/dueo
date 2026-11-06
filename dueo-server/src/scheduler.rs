@@ -393,10 +393,13 @@ pub async fn run_once(
     // Per-channel destinations (user_id → chat_id / email), loaded once per run
     // for the enabled channels only; the email mailer is built once and reused.
     let token = crate::telegram::bot_token();
-    let tg = if token.is_some() {
-        crate::channels::load_targets(db, "telegram", "chat_id").await?
+    let (tg, tg_threads) = if token.is_some() {
+        (
+            crate::channels::load_targets(db, "telegram", "chat_id").await?,
+            crate::channels::load_targets(db, "telegram", "thread_id").await?,
+        )
     } else {
-        HashMap::new()
+        (HashMap::new(), HashMap::new())
     };
 
     let smtp = crate::email::smtp_config();
@@ -452,7 +455,8 @@ pub async fn run_once(
         // rich HTML is sent; the plain `msg` is what gets logged.
         if let (Some(token), Some(chat_id)) = (token.as_ref(), tg.get(&c.user_id)) {
             let html = build_telegram(c);
-            let send = crate::telegram::send_message(token, chat_id, &html);
+            let thread = tg_threads.get(&c.user_id).map(String::as_str);
+            let send = crate::telegram::send_message(token, chat_id, thread, &html);
             match crate::channels::deliver(db, &log_key(c, "telegram"), &msg, send).await {
                 Ok(true) => report.telegram_sent += 1,
                 Ok(false) => {}
