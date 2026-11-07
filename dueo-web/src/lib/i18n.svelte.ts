@@ -391,8 +391,8 @@ const DICT: Record<string, Entry> = {
 	},
 	'set.tgChatId': { es: 'Chat ID', en: 'Chat ID' },
 	'set.tgChatHint': {
-		es: 'Para grupos suele ser un número negativo. El bot debe estar dentro del chat.',
-		en: "For groups it's usually a negative number. The bot must be in the chat."
+		es: 'Para grupos suele ser un número negativo. Si el grupo tiene temas, pega el enlace de un mensaje del tema o escribe chat/tema (-100…/468). El bot debe estar dentro del chat.',
+		en: "For groups it's usually a negative number. If the group has topics, paste a link to a message in the topic or type chat/topic (-100…/468). The bot must be in the chat."
 	},
 	'set.tgEnable': { es: 'Activar envíos por Telegram', en: 'Enable Telegram delivery' },
 	'set.tgTest': { es: 'Enviar prueba', en: 'Send test' },
