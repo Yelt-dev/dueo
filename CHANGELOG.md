@@ -3,6 +3,13 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.5.0](https://github.com/Yelt-dev/dueo/compare/v0.4.0...v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **telegram:** send reminders to a group topic ([b916b51](https://github.com/Yelt-dev/dueo/commit/b916b51f516a7825fc5001ecaa70a7673b93e0e1))
+
 ## [0.4.0](https://github.com/Yelt-dev/dueo/compare/v0.3.1...v0.4.0) (2026-09-06)
 
 
